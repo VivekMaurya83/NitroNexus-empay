@@ -84,3 +84,32 @@ class PayrunAmendment(Base):
 
     original_payrun = relationship("Payrun", back_populates="amendments",
                                    foreign_keys=[original_payrun_id])
+
+
+class PayrollConfig(Base):
+    """Default payroll rules set by Admin during onboarding (editable later)."""
+    __tablename__ = "payroll_configs"
+
+    id                    = Column(Integer, primary_key=True, index=True)
+    company_id            = Column(Integer, ForeignKey("companies.id"), unique=True, nullable=False, index=True)
+    # PF
+    pf_rate               = Column(Numeric(5, 4), default=0.12)   # 12%
+    pf_ceiling            = Column(Numeric(10, 2), default=15000)  # PF on max ₹15,000 basic
+    # HRA
+    hra_percent           = Column(Numeric(5, 4), default=0.40)   # 40% of basic
+    # Conveyance & medical
+    conveyance_fixed      = Column(Numeric(10, 2), default=1600)
+    medical_fixed         = Column(Numeric(10, 2), default=1250)
+    # Professional tax (monthly ₹)
+    professional_tax      = Column(Numeric(8, 2), default=200)
+    # TDS (simplified flat rate; detailed computation outside scope)
+    tds_rate              = Column(Numeric(5, 4), default=0.0)
+    # LTA
+    lta_annual            = Column(Numeric(10, 2), default=0)
+    # Overtime
+    overtime_rate_multiplier = Column(Numeric(4, 2), default=1.5)
+    # Working days per month
+    working_days_per_month   = Column(Integer, default=26)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

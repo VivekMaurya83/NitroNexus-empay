@@ -61,7 +61,7 @@ export async function apiFetch(path, opts = {}, retry = true) {
       return apiFetch(path, opts, false); // retry once with new token
     } catch {
       clearTokens();
-      window.location.href = '/login';
+      window.location.href = '/';
       return;
     }
   }

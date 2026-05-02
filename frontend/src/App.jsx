@@ -6,15 +6,17 @@ import './styles/global.css';
 // Layout
 import Layout from './components/layout/Layout';
 
-// Auth
-import Login    from './pages/auth/Login';
-import Register from './pages/auth/Register';
+// Auth & Landing
+import LandingPage from './pages/auth/LandingPage';
+import Login       from './pages/auth/Login';
+import Register    from './pages/auth/Register';
 
 // Admin
 import AdminDashboard      from './pages/admin/AdminDashboard';
 import AdminSettings       from './pages/admin/AdminSettings';
 import AdminConfigurations from './pages/admin/AdminConfigurations';
 import PayrollRules        from './pages/admin/PayrollRules';
+import AdminSetup          from './pages/admin/AdminSetup';
 
 // HR
 import HRDirectory    from './pages/hr/HRDirectory';
@@ -38,9 +40,17 @@ import Analytics           from './pages/shared/Analytics';
 
 // ─── Route guard ────────────────────────────────────────────────────────────
 function RoleRoute({ element, allowed }) {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  if (allowed && !allowed.includes(user.role)) return <Navigate to={homeFor(user.role)} replace />;
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) {
+    console.warn('RoleRoute: No user found, redirecting to /');
+    return <Navigate to="/" replace />;
+  }
+  if (allowed && !allowed.includes(user.role)) {
+    console.log(`RoleRoute: Access denied for ${user.role} to ${window.location.pathname}`);
+    console.warn(`RoleRoute: Role ${user.role} not allowed for this route. Redirecting to ${homeFor(user.role)}`);
+    return <Navigate to={homeFor(user.role)} replace />;
+  }
   return <Layout>{element}</Layout>;
 }
 
@@ -51,30 +61,37 @@ function homeFor(role) {
     [ROLES.PAYROLL]: '/payroll',
     [ROLES.EMPLOYEE]:'/employee-portal',
   };
-  return map[role] || '/login';
+  return map[role] || '/';
 }
 
 // ─── Root redirect based on role ────────────────────────────────────────────
 function RootRedirect() {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/" replace />;
   return <Navigate to={homeFor(user.role)} replace />;
 }
 
-const A  = [ROLES.ADMIN];
-const AH = [ROLES.ADMIN, ROLES.HR];
-const AP = [ROLES.ADMIN, ROLES.PAYROLL];
-const AHP= [ROLES.ADMIN, ROLES.HR, ROLES.PAYROLL];
-const ALL= [ROLES.ADMIN, ROLES.HR, ROLES.PAYROLL, ROLES.EMPLOYEE];
+const A   = [ROLES.ADMIN];
+const AH  = [ROLES.ADMIN, ROLES.HR];
+const AP  = [ROLES.ADMIN, ROLES.PAYROLL];
+const AHP = [ROLES.ADMIN, ROLES.HR, ROLES.PAYROLL];
+const ALL = [ROLES.ADMIN, ROLES.HR, ROLES.PAYROLL, ROLES.EMPLOYEE];
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public */}
+          {/* Landing page — role selector */}
+          <Route path="/"         element={<LandingPage />} />
+
+          {/* Public auth routes */}
           <Route path="/login"    element={<Login />} />
           <Route path="/register" element={<Register />} />
+
+          {/* Admin first-time setup wizard (no Layout wrapper) */}
+          <Route path="/admin/setup" element={<SetupGuard />} />
 
           {/* Admin only */}
           <Route path="/dashboard"            element={<RoleRoute element={<AdminDashboard />}      allowed={A}   />} />
@@ -84,35 +101,49 @@ export default function App() {
 
           {/* Admin + HR */}
           <Route path="/hr-directory"        element={<RoleRoute element={<HRDirectory />}    allowed={AH}  />} />
-          <Route path="/hr/add-employee"     element={<RoleRoute element={<AddEmployee />}    allowed={AH}  />} />
           <Route path="/hr/leave-allocation" element={<RoleRoute element={<LeaveAllocation />}allowed={AH}  />} />
+
+          {/* Add Employee — Admin + HR + Payroll */}
+          <Route path="/hr/add-employee"     element={<RoleRoute element={<AddEmployee />}    allowed={AHP} />} />
 
           {/* Admin + Payroll */}
           <Route path="/payroll"                  element={<RoleRoute element={<PayrollManagement />} allowed={AP}  />} />
           <Route path="/payroll/salary-structure" element={<RoleRoute element={<SalaryStructure />}   allowed={AP}  />} />
 
-          {/* All staff - leave management (approve/reject for HR+Payroll, apply for Employee) */}
+          {/* All staff */}
           <Route path="/leave"   element={<RoleRoute element={<LeaveManagement />} allowed={ALL} />} />
           <Route path="/payslip" element={<RoleRoute element={<DetailedPayslip />} allowed={ALL} />} />
 
-          {/* Shared - attendance (own vs all gated inside component) */}
-          <Route path="/attendance" element={<RoleRoute element={<AttendanceTracker />} allowed={ALL} />} />
+          {/* Shared */}
+          <Route path="/attendance"  element={<RoleRoute element={<AttendanceTracker />}   allowed={ALL} />} />
+          <Route path="/status-board"element={<RoleRoute element={<EmployeeStatusBoard />} allowed={ALL} />} />
+          <Route path="/analytics"   element={<RoleRoute element={<Analytics />}           allowed={AHP} />} />
 
-          {/* Shared pages - all roles */}
-          <Route path="/status-board" element={<RoleRoute element={<EmployeeStatusBoard />} allowed={ALL} />} />
-          <Route path="/analytics"    element={<RoleRoute element={<Analytics />}           allowed={AHP} />} />
-
-          {/* Profile - all roles (component gates admin extras) */}
+          {/* Profile */}
           <Route path="/profile" element={<RoleRoute element={<UserProfile />} allowed={ALL} />} />
 
           {/* Employee portal */}
           <Route path="/employee-portal" element={<RoleRoute element={<EmployeePortal />} allowed={[ROLES.EMPLOYEE]} />} />
 
           {/* Default */}
-          <Route path="/"  element={<RootRedirect />} />
-          <Route path="*"  element={<RootRedirect />} />
+          <Route path="*" element={<RootRedirect />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
   );
+}
+
+// ─── Setup Guard — only Admins, no Layout wrapper ────────────────────────────
+function SetupGuard() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) {
+    console.warn('SetupGuard: No user found, redirecting to /');
+    return <Navigate to="/" replace />;
+  }
+  if (user.role !== ROLES.ADMIN) {
+    console.warn(`SetupGuard: User is not admin (${user.role}), redirecting.`);
+    return <Navigate to={homeFor(user.role)} replace />;
+  }
+  return <AdminSetup />;
 }

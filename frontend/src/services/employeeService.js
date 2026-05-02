@@ -4,9 +4,9 @@
  * Adapter: maps backend EmployeeOut → frontend Employee shape
  */
 import api from './api';
-import { employees as MOCK_EMPLOYEES } from '../utils/mockData';
+// Note: mock data removed — all data comes from the live API
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
+const USE_MOCK = false; // always use real API
 
 // ── Shape adapter ─────────────────────────────────────────────────────────────
 // Resolves department_id / designation_id using cached lookup maps passed in,
@@ -21,6 +21,7 @@ export function adaptEmployee(e, idx = 0) {
     id:              e.id,
     employeeId:      e.id,
     code:            e.employee_code,
+    loginId:         e.login_id || null,
     name:            fullName,
     firstName:       e.first_name,
     lastName:        e.last_name,
@@ -59,7 +60,6 @@ async function warmCaches() {
 
 // ── Employees ─────────────────────────────────────────────────────────────────
 export async function getEmployees({ search = '', status = '', departmentId = '' } = {}) {
-  if (USE_MOCK) return MOCK_EMPLOYEES;
   await warmCaches();
   const params = new URLSearchParams();
   if (search)       params.set('search',       search);
@@ -72,32 +72,27 @@ export async function getEmployees({ search = '', status = '', departmentId = ''
 }
 
 export async function getEmployee(id) {
-  if (USE_MOCK) return MOCK_EMPLOYEES.find(e => e.id === id);
   await warmCaches();
   const data = await api.get(`/employees/${id}`);
   return adaptEmployee(data);
 }
 
 export async function createEmployee(payload) {
-  if (USE_MOCK) return { ...payload, id: Date.now() };
   const data = await api.post('/employees/', payload);
   return adaptEmployee(data);
 }
 
 export async function updateEmployee(id, payload) {
-  if (USE_MOCK) return { id, ...payload };
   const data = await api.patch(`/employees/${id}`, payload);
   return adaptEmployee(data);
 }
 
 export async function terminateEmployee(id) {
-  if (USE_MOCK) return {};
   return api.delete(`/employees/${id}`);
 }
 
 // ── Departments & Designations ────────────────────────────────────────────────
 export async function getDepartments() {
-  if (USE_MOCK) return [{ id:1, name:'Engineering' },{ id:2, name:'HR' },{ id:3, name:'Finance' }];
   return api.get('/employees/departments');
 }
 
@@ -106,7 +101,6 @@ export async function createDepartment(data) {
 }
 
 export async function getDesignations() {
-  if (USE_MOCK) return [{ id:1, title:'Software Engineer' },{ id:2, title:'HR Manager' }];
   return api.get('/employees/designations');
 }
 

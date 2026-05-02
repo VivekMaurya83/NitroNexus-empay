@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.user import User
-from app.models.payroll import Payrun, Payslip
+from app.models.payroll import Payrun, Payslip, PayrollConfig
 from app.models.enums import UserRole
 from app.schemas.payroll import PayrunCreate, PayrunOut, PayslipOut, AmendmentCreate
 from app.schemas.common import ResponseModel
@@ -120,3 +120,63 @@ def pending_amendments(db: Session = Depends(get_db),
     ).all()
     from app.schemas.leave import LeaveApplicationOut
     return ResponseModel(data=[LeaveApplicationOut.model_validate(a) for a in apps])
+
+
+# ── Payroll Config / Default Rules (Admin sets on onboarding, editable later) ───
+
+@router.get("/config", response_model=ResponseModel)
+def get_payroll_config(db: Session = Depends(get_db),
+                       cu: User = Depends(get_current_user)):
+    config = db.query(PayrollConfig).filter(
+        PayrollConfig.company_id == cu.company_id
+    ).first()
+    if not config:
+        raise HTTPException(404, "No payroll config found. Admin must set defaults first.")
+    return ResponseModel(data={
+        "id": config.id,
+        "pf_rate": float(config.pf_rate),
+        "pf_ceiling": float(config.pf_ceiling),
+        "hra_percent": float(config.hra_percent),
+        "conveyance_fixed": float(config.conveyance_fixed),
+        "medical_fixed": float(config.medical_fixed),
+        "professional_tax": float(config.professional_tax),
+        "tds_rate": float(config.tds_rate),
+        "lta_annual": float(config.lta_annual),
+        "overtime_rate_multiplier": float(config.overtime_rate_multiplier),
+        "working_days_per_month": config.working_days_per_month,
+    })
+
+
+@router.post("/config", response_model=ResponseModel, status_code=201)
+def set_payroll_config(
+    body: dict,
+    db: Session = Depends(get_db),
+    cu: User = Depends(require_payroll),
+):
+    """Create or replace the payroll config for this company."""
+    existing = db.query(PayrollConfig).filter(
+        PayrollConfig.company_id == cu.company_id
+    ).first()
+    if existing:
+        for k, v in body.items():
+            if hasattr(existing, k):
+                setattr(existing, k, v)
+        db.commit()
+        db.refresh(existing)
+        return ResponseModel(message="Payroll config updated",
+                             data={"id": existing.id})
+
+    config = PayrollConfig(
+        company_id=cu.company_id,
+        **{k: v for k, v in body.items()
+           if k in ["pf_rate", "pf_ceiling", "hra_percent", "conveyance_fixed",
+                    "medical_fixed", "professional_tax", "tds_rate",
+                    "lta_annual", "overtime_rate_multiplier", "working_days_per_month"]}
+    )
+    db.add(config)
+    db.commit()
+    db.refresh(config)
+    from app.services.audit_service import log_action
+    log_action(db, cu.id, "set_payroll_config", "PayrollConfig", config.id,
+               "Default payroll rules configured", company_id=cu.company_id)
+    return ResponseModel(message="Payroll config saved", data={"id": config.id}, status_code=201)

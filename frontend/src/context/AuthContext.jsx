@@ -44,6 +44,7 @@ function buildUserFromToken(tokenResp, meData) {
     id:          tokenResp.user_id,
     employeeId:  tokenResp.employee_id,
     companyId:   tokenResp.company_id,
+    loginId:     tokenResp.login_id || null,   // branded employee Login ID
     role:        tokenResp.role,
     email:       meData?.email || '',
     name:        meData?.name  || meData?.email?.split('@')[0] || 'User',
@@ -90,6 +91,15 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
+  // ── checkOnboarding: returns { complete, has_hr, has_payroll, has_payroll_rules } ──
+  const checkOnboarding = useCallback(async () => {
+    try {
+      return await api.get('/companies/me/onboarding-status');
+    } catch {
+      return null;
+    }
+  }, []);
+
   // ── login ──────────────────────────────────────────────────────────────────
   const login = useCallback(async (email, password) => {
     setLoading(true);
@@ -99,7 +109,7 @@ export function AuthProvider({ children }) {
 
       // Fetch full user profile
       const me = await api.get('/auth/me');
-      // Fetch company name
+      // Fetch company name (best-effort)
       let companyName = 'Your Company';
       try {
         const co = await api.get('/companies/me');
@@ -135,7 +145,7 @@ export function AuthProvider({ children }) {
   }, [user?.role]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, can, ROLES }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, can, checkOnboarding, ROLES }}>
       {children}
     </AuthContext.Provider>
   );

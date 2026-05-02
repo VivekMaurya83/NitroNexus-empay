@@ -5,6 +5,8 @@ from typing import Optional
 from app.core.database import get_db
 from app.models.company import Company
 from app.models.user import User
+from app.models.payroll import PayrollConfig
+from app.models.enums import UserRole
 from app.schemas.company import CompanyCreate, CompanyUpdate, CompanyOut
 from app.schemas.common import ResponseModel
 from app.api.v1.deps import get_current_user, require_admin
@@ -58,3 +60,43 @@ def update_company(company_id: int, p: CompanyUpdate,
     log_action(db, cu.id, "update_company", "Company", company_id,
                f"Updated: {list(updates.keys())}", company_id=company_id)
     return ResponseModel(data=CompanyOut.model_validate(company))
+
+
+@router.get("/me/onboarding-status", response_model=ResponseModel)
+def onboarding_status(
+    db: Session = Depends(get_db),
+    cu: User = Depends(require_admin),
+):
+    """Returns what the Admin has completed in the first-time setup wizard."""
+    from app.models.enums import UserRole
+
+    has_hr = db.query(User).filter(
+        User.company_id == cu.company_id,
+        User.role == UserRole.HR_OFFICER,
+        User.is_active == True,
+    ).first() is not None
+
+    has_payroll = db.query(User).filter(
+        User.company_id == cu.company_id,
+        User.role == UserRole.PAYROLL_OFFICER,
+        User.is_active == True,
+    ).first() is not None
+
+    # Check if default payroll config / rules exist for this company
+    has_payroll_rules = False
+    try:
+        from app.models.payroll import PayrollConfig
+        has_payroll_rules = db.query(PayrollConfig).filter(
+            PayrollConfig.company_id == cu.company_id
+        ).first() is not None
+    except Exception:
+        has_payroll_rules = False  # table may not exist yet
+
+    complete = has_hr and has_payroll and has_payroll_rules
+
+    return ResponseModel(data={
+        "has_hr": has_hr,
+        "has_payroll": has_payroll,
+        "has_payroll_rules": has_payroll_rules,
+        "complete": complete,
+    })

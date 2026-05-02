@@ -15,6 +15,7 @@ class CompanyUpdate(BaseModel):
 class CompanyOut(BaseModel):
     id: int
     name: str
+    short_code: Optional[str] = None
     is_active: bool
     created_at: datetime
 

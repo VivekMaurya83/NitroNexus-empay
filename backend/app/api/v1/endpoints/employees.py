@@ -4,6 +4,7 @@ from typing import Optional
 
 from app.core.database import get_db
 from app.models.user import User
+from app.models.company import Company
 from app.models.employee import Employee, Department, Designation
 from app.models.enums import UserRole, EmploymentStatus
 from app.schemas.employee import (
@@ -14,6 +15,7 @@ from app.schemas.employee import (
 from app.schemas.common import ResponseModel
 from app.api.v1.deps import get_current_user, require_hr, require_admin
 from app.services.audit_service import log_action
+from app.utils.login_id import generate_login_id, company_short_code
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
@@ -28,7 +30,13 @@ def create_department(p: DepartmentCreate, db: Session = Depends(get_db),
         Department.name == p.name,
     ).first():
         raise HTTPException(400, "Department already exists")
-    dept = Department(company_id=cu.company_id, name=p.name, description=p.description)
+    dept = Department(
+        company_id=cu.company_id,
+        name=p.name,
+        description=p.description,
+        manager_name=p.manager_name,
+        headcount=p.headcount,
+    )
     db.add(dept)
     db.commit()
     db.refresh(dept)
@@ -85,9 +93,17 @@ def create_employee(p: EmployeeCreate, db: Session = Depends(get_db),
         count += 1
         code = f"EMP{str(1001 + count).zfill(6)}"
 
+    # Generate smart Login ID
+    company = db.query(Company).filter(Company.id == cu.company_id).first()
+    co_code = company.short_code if company and company.short_code else \
+              (company_short_code(company.name) if company else "XX")
+    lid = generate_login_id(co_code, p.first_name, p.last_name,
+                            p.date_of_joining.year, db)
+
     emp = Employee(
         company_id=cu.company_id,
         user_id=p.user_id, employee_code=code,
+        login_id=lid,
         first_name=p.first_name, last_name=p.last_name,
         date_of_joining=p.date_of_joining, date_of_birth=p.date_of_birth,
         department_id=p.department_id, designation_id=p.designation_id,
@@ -100,7 +116,7 @@ def create_employee(p: EmployeeCreate, db: Session = Depends(get_db),
     db.commit()
     db.refresh(emp)
     log_action(db, cu.id, "create_employee", "Employee", emp.id,
-               f"{emp.first_name} {emp.last_name} ({emp.employee_code})",
+               f"{emp.first_name} {emp.last_name} ({emp.employee_code}) login:{lid}",
                company_id=cu.company_id)
     return ResponseModel(data=EmployeeOut.model_validate(emp))
 

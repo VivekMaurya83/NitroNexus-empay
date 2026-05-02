@@ -3,25 +3,34 @@ from typing import Optional
 from datetime import date, datetime
 from app.models.enums import EmploymentType, EmploymentStatus
 
+
 class DepartmentCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    manager_name: Optional[str] = None
+    headcount: Optional[int] = None
+
 
 class DepartmentOut(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    manager_name: Optional[str] = None
+    headcount: Optional[int] = None
     model_config = {"from_attributes": True}
+
 
 class DesignationCreate(BaseModel):
     title: str
     department_id: Optional[int] = None
+
 
 class DesignationOut(BaseModel):
     id: int
     title: str
     department_id: Optional[int] = None
     model_config = {"from_attributes": True}
+
 
 class EmployeeCreate(BaseModel):
     user_id: int
@@ -40,6 +49,7 @@ class EmployeeCreate(BaseModel):
     account_number: Optional[str] = None
     ifsc_code: Optional[str] = None
 
+
 class EmployeeUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -54,9 +64,11 @@ class EmployeeUpdate(BaseModel):
     employment_status: Optional[EmploymentStatus] = None
     date_of_leaving: Optional[date] = None
 
+
 class EmployeeOut(BaseModel):
     id: int
     employee_code: str
+    login_id: Optional[str] = None
     first_name: str
     last_name: str
     date_of_joining: date
@@ -69,4 +81,5 @@ class EmployeeOut(BaseModel):
     pan_number: Optional[str] = None
     bank_name: Optional[str] = None
     account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
     model_config = {"from_attributes": True}

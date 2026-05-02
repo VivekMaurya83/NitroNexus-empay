@@ -65,3 +65,31 @@ def payroll_trend(
 def headcount(db: Session = Depends(get_db),
               cu: User = Depends(get_current_user)):
     return ResponseModel(data=get_headcount_by_department(db, cu.company_id))
+
+
+@router.get("/audit-logs", response_model=ResponseModel)
+def audit_logs(
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    cu: User = Depends(get_current_user),
+):
+    from app.models.audit import AuditLog
+    logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.company_id == cu.company_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return ResponseModel(data=[
+        {
+            "id": l.id,
+            "action": l.action,
+            "entity_type": l.resource_type,
+            "entity_id": l.resource_id,
+            "detail": l.description,
+            "user_id": l.user_id,
+            "created_at": str(l.created_at),
+        }
+        for l in logs
+    ])

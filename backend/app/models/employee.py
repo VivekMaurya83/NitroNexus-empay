@@ -13,11 +13,13 @@ class Department(Base):
         UniqueConstraint("company_id", "name", name="uq_departments_company_name"),
     )
 
-    id          = Column(Integer, primary_key=True, index=True)
-    company_id  = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
-    name        = Column(String(100), nullable=False)
-    description = Column(String(500), nullable=True)
-    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    id           = Column(Integer, primary_key=True, index=True)
+    company_id   = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    name         = Column(String(100), nullable=False)
+    description  = Column(String(500), nullable=True)
+    manager_name = Column(String(150), nullable=True)   # HR-supplied manager name
+    headcount    = Column(Integer, nullable=True)        # planned headcount
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
 
     company      = relationship("Company", back_populates="departments")
     employees    = relationship("Employee", back_populates="department")
@@ -44,6 +46,7 @@ class Employee(Base):
     company_id         = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     user_id            = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     employee_code      = Column(String(20), unique=True, nullable=False, index=True)
+    login_id           = Column(String(25), unique=True, nullable=True, index=True)   # e.g. OIJODO20220001
     first_name         = Column(String(100), nullable=False)
     last_name          = Column(String(100), nullable=False)
     date_of_birth      = Column(Date, nullable=True)
