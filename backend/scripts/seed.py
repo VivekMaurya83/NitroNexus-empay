@@ -15,8 +15,10 @@ db = SessionLocal()
 def seed():
     depts = {}
     for name in ["Engineering", "Human Resources", "Finance", "Operations"]:
-        d = Department(name=name)
-        db.add(d); db.flush()
+        d = db.query(Department).filter(Department.name == name).first()
+        if not d:
+            d = Department(name=name)
+            db.add(d); db.flush()
         depts[name] = d
 
     desigs = {}
@@ -24,8 +26,10 @@ def seed():
                          ("HR Manager","Human Resources"),
                          ("Payroll Specialist","Finance"),
                          ("Operations Lead","Operations")]:
-        des = Designation(title=title, department_id=depts[dept].id)
-        db.add(des); db.flush()
+        des = db.query(Designation).filter(Designation.title == title).first()
+        if not des:
+            des = Designation(title=title, department_id=depts[dept].id)
+            db.add(des); db.flush()
         desigs[title] = des
 
     users = {}
@@ -35,9 +39,11 @@ def seed():
                          ("alice@empay.com",   UserRole.EMPLOYEE),
                          ("bob@empay.com",     UserRole.EMPLOYEE),
                          ("carol@empay.com",   UserRole.EMPLOYEE)]:
-        u = User(email=email, hashed_password=hash_password("Empay@123"),
-                 role=role, is_active=True)
-        db.add(u); db.flush()
+        u = db.query(User).filter(User.email == email).first()
+        if not u:
+            u = User(email=email, hashed_password=hash_password("Empay@123"),
+                     role=role, is_active=True)
+            db.add(u); db.flush()
         users[email] = u
 
     emps = {}
@@ -47,15 +53,17 @@ def seed():
         ("carol@empay.com", "Carol","Mehta",     date(2023,7,1),  "Operations",      "Operations Lead"),
         ("hr@empay.com",    "Priya","Sharma",    date(2022,1,10), "Human Resources", "HR Manager"),
     ], start=1):
-        emp = Employee(
-            user_id=users[email].id,
-            employee_code=f"EMP{str(1000+i).zfill(6)}",
-            first_name=first, last_name=last, date_of_joining=doj,
-            department_id=depts[dept].id, designation_id=desigs[desig].id,
-            employment_type=EmploymentType.FULL_TIME,
-            employment_status=EmploymentStatus.ACTIVE,
-        )
-        db.add(emp); db.flush()
+        emp = db.query(Employee).filter(Employee.user_id == users[email].id).first()
+        if not emp:
+            emp = Employee(
+                user_id=users[email].id,
+                employee_code=f"EMP{str(1000+i).zfill(6)}",
+                first_name=first, last_name=last, date_of_joining=doj,
+                department_id=depts[dept].id, designation_id=desigs[desig].id,
+                employment_type=EmploymentType.FULL_TIME,
+                employment_status=EmploymentStatus.ACTIVE,
+            )
+            db.add(emp); db.flush()
         emps[email] = emp
 
     for email, basic, hra, conv, med, spl, lta, bonus in [
@@ -64,12 +72,14 @@ def seed():
         ("carol@empay.com", 38000,15200,1600,1250,3000,1250,1500),
         ("hr@empay.com",    50000,20000,1600,1250,5000,1250,5000),
     ]:
-        db.add(SalaryStructure(
-            employee_id=emps[email].id, basic=basic, hra=hra,
-            conveyance=conv, medical=med, special_allowance=spl,
-            lta=lta, bonus=bonus, pf_applicable=True,
-            professional_tax_state="Maharashtra", is_active=True,
-        ))
+        sal = db.query(SalaryStructure).filter(SalaryStructure.employee_id == emps[email].id).first()
+        if not sal:
+            db.add(SalaryStructure(
+                employee_id=emps[email].id, basic=basic, hra=hra,
+                conveyance=conv, medical=med, special_allowance=spl,
+                lta=lta, bonus=bonus, pf_applicable=True,
+                professional_tax_state="Maharashtra", is_active=True,
+            ))
 
     policies = {}
     for ltype, days, paid, carry in [
@@ -78,17 +88,25 @@ def seed():
         (LeaveType.EARNED, 15, True,  True),
         (LeaveType.UNPAID,  0, False, False),
     ]:
-        p = LeavePolicy(leave_type=ltype, max_days_per_year=days,
-                        is_paid=paid, carry_forward=carry)
-        db.add(p); db.flush()
+        p = db.query(LeavePolicy).filter(LeavePolicy.leave_type == ltype).first()
+        if not p:
+            p = LeavePolicy(leave_type=ltype, max_days_per_year=days,
+                            is_paid=paid, carry_forward=carry)
+            db.add(p); db.flush()
         policies[ltype] = p
 
     for email in emps:
         for ltype, days in [(LeaveType.CASUAL,12),(LeaveType.SICK,12),(LeaveType.EARNED,15)]:
-            db.add(LeaveAllocation(
-                employee_id=emps[email].id, policy_id=policies[ltype].id,
-                year=2026, total_days=days, used_days=0, remaining_days=days,
-            ))
+            alloc = db.query(LeaveAllocation).filter(
+                LeaveAllocation.employee_id == emps[email].id,
+                LeaveAllocation.policy_id == policies[ltype].id,
+                LeaveAllocation.year == 2026
+            ).first()
+            if not alloc:
+                db.add(LeaveAllocation(
+                    employee_id=emps[email].id, policy_id=policies[ltype].id,
+                    year=2026, total_days=days, used_days=0, remaining_days=days,
+                ))
 
     db.commit()
     print("Seed complete!")

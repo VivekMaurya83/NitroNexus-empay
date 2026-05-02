@@ -146,6 +146,7 @@ h6 { font-size: var(--font-size-sm); font-weight: 600; letter-spacing: 0.05em; t
 .badge-absent, .badge-rejected, .badge-inactive { background: var(--error-container); color: var(--error); }
 .badge-late, .badge-warning { background: var(--warning-container); color: var(--warning); }
 .badge-pending { background: #ede9fe; color: #7c3aed; }
+.badge-hr { background: #ccfbf1; color: #0d9488; }
 .badge-processed { background: var(--info-container); color: var(--info); }
 .badge-draft { background: var(--surface-container-high); color: var(--on-surface-variant); }
 

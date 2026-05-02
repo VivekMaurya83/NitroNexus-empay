@@ -10,6 +10,7 @@ app = FastAPI(
     description="EmPay — Smart Human Resource Management System",
 )
 
+# Standard CORS setup - ensure it is Added FIRST
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,

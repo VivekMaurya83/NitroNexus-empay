@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Camera, Save, Plus, X, Upload, Briefcase, Award, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ROLES } from '../../utils/mockData';
+import { ROLES } from '../../context/AuthContext';
 import { resumeData } from '../../utils/mockData';
 
 export default function UserProfile() {
@@ -10,10 +10,14 @@ export default function UserProfile() {
   const isAdmin = user?.role === ROLES.ADMIN;
 
   const [form, setForm]   = useState({
-    firstName: user?.name?.split(' ')[0] || '',
-    lastName:  user?.name?.split(' ').slice(1).join(' ') || '',
+    firstName: user?.firstName || user?.name?.split(' ')[0] || '',
+    lastName:  user?.lastName  || user?.name?.split(' ').slice(1).join(' ') || '',
     email:     user?.email    || '',
-    phone:     '+91 98765 43210',
+    phone:     user?.phone    || '',
+    dateOfBirth: user?.dateOfBirth || '',
+    address:   user?.address  || '',
+    panNumber: user?.panNumber || '',
+    ifscCode:  user?.ifscCode || '',
     about:     resumeData.about,
   });
   const [skills,  setSkills]  = useState([...resumeData.skills]);
@@ -94,6 +98,12 @@ export default function UserProfile() {
                 </div>
                 <div className="form-group"><label className="form-label">Email</label><input name="email" type="email" value={form.email} onChange={handle} className="form-input"/></div>
                 <div className="form-group"><label className="form-label">Phone</label><input name="phone" value={form.phone} onChange={handle} className="form-input"/></div>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Date of Birth</label><input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={handle} className="form-input"/></div>
+                  <div className="form-group"><label className="form-label">PAN Number</label><input name="panNumber" value={form.panNumber} onChange={handle} className="form-input"/></div>
+                </div>
+                <div className="form-group"><label className="form-label">Address</label><textarea name="address" value={form.address} onChange={handle} className="form-input" rows={2}/></div>
+                <div className="form-group"><label className="form-label">Bank IFSC Code</label><input name="ifscCode" value={form.ifscCode} onChange={handle} className="form-input"/></div>
                 <div className="form-section-title" style={{ marginTop:'var(--space-4)' }}>About</div>
                 <div className="form-group"><textarea name="about" value={form.about} onChange={handle} className="form-textarea" rows={4} placeholder="Tell us about yourself…"/></div>
                 <div style={{ display:'flex', justifyContent:'flex-end', gap:'var(--space-3)', marginTop:'var(--space-4)' }}>

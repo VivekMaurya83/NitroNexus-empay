@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama3-8b-8192"
     PF_RATE: float = 0.12
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
 
     @property
     def cors_origins_list(self) -> List[str]:

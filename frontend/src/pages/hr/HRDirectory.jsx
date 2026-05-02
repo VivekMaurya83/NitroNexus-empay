@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Search, UserPlus, Eye, Edit, Trash2, Phone, Mail } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { ROLES } from '../../utils/mockData';
+import { ROLES } from '../../context/AuthContext';
 import { getEmployees } from '../../services/employeeService';
 
 const DEPT_FILTERS   = ['All', 'Engineering', 'HR', 'Finance', 'Design', 'Analytics', 'Product'];
@@ -82,6 +82,7 @@ export default function HRDirectory() {
                 <th>Employee</th>
                 <th>Code</th>
                 <th>Designation</th>
+                <th>Type</th>
                 <th>Department</th>
                 {/* Personal details — visible to Admin and HR only */}
                 {(isAdmin || isHR) && <th>Phone</th>}
@@ -110,6 +111,7 @@ export default function HRDirectory() {
                     </td>
                     <td style={{ fontFamily:'monospace', fontSize:'var(--font-size-sm)', color:'var(--on-surface-variant)' }}>{emp.code}</td>
                     <td>{emp.designation}</td>
+                    <td style={{ textTransform: 'capitalize' }}><span className="badge badge-draft">{emp.employmentType?.replace('_', ' ')}</span></td>
                     <td><span className="badge badge-draft">{emp.department}</span></td>
 
                     {(isAdmin || isHR) && (

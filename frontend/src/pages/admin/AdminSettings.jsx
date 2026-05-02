@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { employees, ROLES } from '../../utils/mockData';
+import { ROLES } from '../../context/AuthContext';
+import { getEmployees } from '../../services/employeeService';
 
 const ROLE_OPTIONS = [
   { value: ROLES.EMPLOYEE,  label: 'Employee' },
@@ -13,6 +14,11 @@ const ROLE_OPTIONS = [
 
 export default function AdminSettings() {
   const [editRoles, setEditRoles] = useState({});
+  const [employees, setEmployees] = useState([]);
+
+  useEffect(() => {
+    getEmployees().then(setEmployees).catch(() => {});
+  }, []);
 
   return (
     <div>

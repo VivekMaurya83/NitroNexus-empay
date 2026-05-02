@@ -7,7 +7,7 @@ import {
   FileText, UserPlus, SlidersHorizontal, UserCheck,
   BarChart2, Bell, MonitorSmartphone, ShieldCheck
 } from 'lucide-react';
-import { ROLES } from '../../utils/mockData';
+import { ROLES } from '../../context/AuthContext';
 import { useAuth } from '../../context/AuthContext';
 import './Sidebar.css';
 

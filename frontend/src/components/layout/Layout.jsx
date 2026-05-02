@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
-import { useAuth } from '../../context/AuthContext';
-import { ROLES, systemAlerts } from '../../utils/mockData';
+import { useAuth, ROLES } from '../../context/AuthContext';
 
 const PAGE_TITLES = {
   '/dashboard':                 'Dashboard',
@@ -32,7 +31,7 @@ export default function Layout({ children }) {
   const { user }  = useAuth();
 
   const title      = PAGE_TITLES[location.pathname] || 'EmPay';
-  const alertCount = user?.role === ROLES.ADMIN ? systemAlerts.length : 0;
+  const alertCount = 0; // fetched dynamically by TopBar/Dashboard
 
   return (
     <div className="app-layout">

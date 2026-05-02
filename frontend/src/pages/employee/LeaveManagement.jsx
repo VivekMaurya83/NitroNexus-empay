@@ -1,208 +1,271 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, CheckCircle, XCircle, ShieldAlert } from 'lucide-react';
+import { Plus, X, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
-import { ROLES } from '../../utils/mockData';
-import { getLeaveRequests, applyLeave, updateLeaveStatus, getLeaveAllocations, getLeaveTypes } from '../../services/leaveService';
+import { ROLES } from '../../context/AuthContext';
+import {
+  getLeaveRequests, applyLeave, cancelLeave,
+  hrReviewLeave, payrollReviewLeave, getLeaveAllocations, getLeavePolicies,
+} from '../../services/leaveService';
 
-const TYPE_FILTERS   = ['All', 'Annual Leave', 'Sick Leave', 'Casual Leave'];
-const STATUS_FILTERS = ['All', 'pending', 'approved', 'rejected'];
+const LEAVE_TYPES = ['casual','sick','earned','maternity','paternity','unpaid','comp_off'];
+const LABEL = { casual:'Casual',sick:'Sick',earned:'Earned',maternity:'Maternity',paternity:'Paternity',unpaid:'Unpaid',comp_off:'Comp Off' };
+const STATUS_FILTERS = ['all','pending','hr_approved','approved','rejected','cancelled'];
 
 export default function LeaveManagement() {
   const { user } = useAuth();
-  const isEmployee = user?.role === ROLES.EMPLOYEE;
-  const canApprove = [ROLES.ADMIN, ROLES.HR, ROLES.PAYROLL].includes(user?.role);
+  const role = user?.role;
+  const isAdmin    = role === ROLES.ADMIN;
+  const isHR       = role === ROLES.HR;
+  const isPayroll  = role === ROLES.PAYROLL;
+  const isEmployee = role === ROLES.EMPLOYEE;
 
-  const [requests,    setRequests]    = useState([]);
+  const [leaves,      setLeaves]      = useState([]);
   const [allocations, setAllocations] = useState([]);
-  const [leaveTypes,  setLeaveTypes]  = useState([]);
-  const [statusF,     setStatusF]     = useState('All');
-  const [typeF,       setTypeF]       = useState('All');
-  const [showModal,   setShowModal]   = useState(false);
-  const [override,    setOverride]    = useState(null); // id of request being overridden
-  const [form,        setForm]        = useState({ leaveTypeId:'', fromDate:'', toDate:'', reason:'' });
+  const [statusF,     setStatusF]     = useState('all');
+  const [loading,     setLoading]     = useState(true);
+  const [showApply,   setShowApply]   = useState(false);
+  const [reviewModal, setReviewModal] = useState(null); // { id, action, stage }
+  const [remarks,     setRemarks]     = useState('');
+  const [form, setForm] = useState({ leaveType:'casual', fromDate:'', toDate:'', reason:'' });
 
-  useEffect(() => {
-    const filters = isEmployee ? { employeeId: user.id } : {};
-    getLeaveRequests(filters).then(setRequests);
-    getLeaveAllocations(isEmployee ? { employeeId: user.id } : {}).then(setAllocations);
-    getLeaveTypes().then(setLeaveTypes);
-  }, [isEmployee, user?.id]);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await getLeaveRequests(statusF !== 'all' ? { status: statusF } : {});
+      setLeaves(data);
+      if (isEmployee && user?.employeeId) {
+        const alloc = await getLeaveAllocations(user.employeeId);
+        setAllocations(alloc);
+      }
+    } finally { setLoading(false); }
+  };
 
-  const handle = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  useEffect(() => { load(); }, [statusF]);
 
-  const submitLeave = async (e) => {
+  // ── Apply leave ─────────────────────────────────────────────────────────────
+  const handleApply = async (e) => {
     e.preventDefault();
-    const lt = leaveTypes.find(l => l.id === form.leaveTypeId);
-    const newReq = await applyLeave({ ...form, employee: user.name, employeeId: user.id, type: lt?.name, status:'pending', days: 1 });
-    setRequests(r => [{ ...newReq, employee: user.name }, ...r]);
-    setShowModal(false);
-    setForm({ leaveTypeId:'', fromDate:'', toDate:'', reason:'' });
+    await applyLeave({ leaveType: form.leaveType, fromDate: form.fromDate, toDate: form.toDate, reason: form.reason });
+    setShowApply(false);
+    setForm({ leaveType:'casual', fromDate:'', toDate:'', reason:'' });
+    load();
   };
 
-  const changeStatus = async (id, status) => {
-    await updateLeaveStatus(id, status, user.name);
-    setRequests(r => r.map(x => x.id === id ? { ...x, status, approvedBy: user.name } : x));
-    setOverride(null);
+  // ── Cancel (employee own leave) ─────────────────────────────────────────────
+  const handleCancel = async (id) => {
+    if (!window.confirm('Cancel this leave request?')) return;
+    await cancelLeave(id);
+    load();
   };
 
-  const filtered = requests.filter(r => {
-    const matchStatus = statusF === 'All' || r.status === statusF;
-    const matchType   = typeF   === 'All' || r.type   === typeF;
-    return matchStatus && matchType;
-  });
+  // ── Review modal confirm ────────────────────────────────────────────────────
+  const handleReview = async () => {
+    if (!reviewModal) return;
+    const { id, action, stage } = reviewModal;
+    if (stage === 'hr')      await hrReviewLeave(id, action, remarks);
+    else                     await payrollReviewLeave(id, action, remarks);
+    setReviewModal(null); setRemarks('');
+    load();
+  };
+
+  // ── Decide which actions to show per row ────────────────────────────────────
+  const rowActions = (leave) => {
+    const buttons = [];
+    if (isEmployee && leave.status === 'pending') {
+      buttons.push({ label:'Cancel', variant:'btn-danger', onClick:()=>handleCancel(leave.id) });
+    }
+    // HR can review pending → hr_approved / rejected
+    if ((isAdmin || isHR) && leave.status === 'pending') {
+      buttons.push(
+        { label:'Approve', variant:'btn-success', onClick:()=>{ setReviewModal({ id:leave.id, action:'approve', stage:'hr' }); setRemarks(''); }},
+        { label:'Reject',  variant:'btn-danger',  onClick:()=>{ setReviewModal({ id:leave.id, action:'reject',  stage:'hr' }); setRemarks(''); }},
+      );
+    }
+    // Payroll (or Admin) can confirm hr_approved → approved / rejected
+    if ((isAdmin || isPayroll) && leave.status === 'hr_approved') {
+      buttons.push(
+        { label:'Confirm', variant:'btn-success', onClick:()=>{ setReviewModal({ id:leave.id, action:'approve', stage:'payroll' }); setRemarks(''); }},
+        { label:'Reject',  variant:'btn-danger',  onClick:()=>{ setReviewModal({ id:leave.id, action:'reject',  stage:'payroll' }); setRemarks(''); }},
+      );
+    }
+    return buttons;
+  };
+
+  const filtered = leaves.filter(l => statusF === 'all' || l.status === statusF);
 
   return (
     <div>
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'var(--space-5)' }}>
-        <div>
-          <h1 className="page-title">{isEmployee ? 'My Leave' : 'Leave Management'}</h1>
-          <p className="page-subtitle">{isEmployee ? 'Apply for leave and track your requests' : 'Review and action all employee leave requests'}</p>
+        <div><h1 className="page-title">Leave Management</h1>
+          <p className="page-subtitle">{isEmployee ? 'Apply and track your leave requests' : '2-stage approval: HR → Payroll'}</p>
         </div>
-        {isEmployee && (
-          <motion.button className="btn btn-primary" onClick={() => setShowModal(true)} whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}>
+        {(isEmployee || isAdmin || isHR) && (
+          <motion.button className="btn btn-primary" onClick={()=>setShowApply(true)} whileHover={{ scale:1.02 }}>
             <Plus size={16}/> Apply Leave
           </motion.button>
         )}
       </div>
 
-      {/* Leave balances (employee and managers can see) */}
-      {allocations.length > 0 && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px,1fr))', gap:'var(--space-3)', marginBottom:'var(--space-5)' }}>
-          {allocations.slice(0,4).map((a, i) => {
-            const rem = a.allocated - a.used;
-            const pct = Math.round((a.used / a.allocated) * 100);
-            return (
-              <motion.div key={a.id} className="card card-sm" initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}>
-                <div style={{ fontWeight:600, fontSize:'var(--font-size-sm)', marginBottom:6 }}>{a.leaveType}</div>
-                <div style={{ display:'flex', gap:'var(--space-3)', marginBottom:8 }}>
-                  <div><div style={{ fontSize:24, fontWeight:800, color:rem<=2?'var(--error)':'var(--primary-container)' }}>{rem}</div><div style={{ fontSize:11, color:'var(--on-surface-variant)' }}>Left</div></div>
-                  <div><div style={{ fontSize:24, fontWeight:800, color:'var(--on-surface-variant)' }}>{a.used}</div><div style={{ fontSize:11, color:'var(--on-surface-variant)' }}>Used</div></div>
-                  <div><div style={{ fontSize:24, fontWeight:800 }}>{a.allocated}</div><div style={{ fontSize:11, color:'var(--on-surface-variant)' }}>Total</div></div>
-                </div>
-                <div style={{ background:'var(--surface-container)', borderRadius:'var(--radius-full)', height:6, overflow:'hidden' }}>
-                  <motion.div style={{ height:'100%', background: pct>80?'var(--error)':'var(--success)', borderRadius:'var(--radius-full)' }}
-                    initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ delay:0.3+i*0.1, duration:0.6 }} />
-                </div>
-              </motion.div>
-            );
-          })}
+      {/* Leave Balance Cards — Employee only */}
+      {isEmployee && allocations.length > 0 && (
+        <div className="stats-grid" style={{ marginBottom:'var(--space-4)' }}>
+          {allocations.map((a,i) => (
+            <motion.div key={a.id} className="stat-card" initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}>
+              <div className="stat-value" style={{ color:'var(--primary-container)' }}>{a.remaining}</div>
+              <div className="stat-label">{a.leaveType || `Policy #${a.policyId}`}</div>
+              <div style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', marginTop:2 }}>{a.used} used / {a.allocated} total</div>
+            </motion.div>
+          ))}
         </div>
       )}
 
-      {/* Filters */}
-      <div className="filter-bar" style={{ marginBottom:'var(--space-4)' }}>
-        <div className="filter-chips">
-          {STATUS_FILTERS.map(s => (
-            <button key={s} className={`filter-chip ${statusF===s?'active':''}`} onClick={()=>setStatusF(s)}>
-              {s==='All'?'All Status':s.charAt(0).toUpperCase()+s.slice(1)}
-            </button>
-          ))}
+      {/* Payroll workflow notice */}
+      {isPayroll && (
+        <div className="card card-sm" style={{ background:'#eff6ff', borderColor:'var(--info)', marginBottom:'var(--space-4)' }}>
+          <div style={{ display:'flex', gap:10, alignItems:'center', color:'var(--info)' }}>
+            <AlertCircle size={16}/>
+            <span style={{ fontSize:'var(--font-size-sm)' }}><strong>Your queue:</strong> Only leaves with status <span className="badge badge-hr">HR Approved</span> need your confirmation.</span>
+          </div>
         </div>
-        <select className="form-select" style={{ width:160, padding:'7px 12px', fontSize:'var(--font-size-sm)' }} value={typeF} onChange={e=>setTypeF(e.target.value)}>
-          {TYPE_FILTERS.map(t => <option key={t}>{t}</option>)}
-        </select>
+      )}
+
+      {/* Status Filters */}
+      <div className="filter-chips" style={{ marginBottom:'var(--space-4)' }}>
+        {STATUS_FILTERS.map(s => (
+          <button key={s} className={`filter-chip ${statusF===s?'active':''}`} onClick={()=>setStatusF(s)}>
+            {s==='all'?'All':s==='hr_approved'?'HR Approved':s.charAt(0).toUpperCase()+s.slice(1)}
+            {s!=='all' && <span style={{ marginLeft:5, fontWeight:700 }}>
+              ({leaves.filter(l=>l.status===s).length})
+            </span>}
+          </button>
+        ))}
       </div>
 
+      {/* Table */}
       <motion.div className="card" initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }}>
         <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
                 {!isEmployee && <th>Employee</th>}
-                <th>Leave Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th>
-                {canApprove && <th>Approved By</th>}
-                {canApprove && <th>Actions</th>}
+                <th>Type</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Days</th>
+                <th>Reason</th>
+                <th>HR Remarks</th>
+                <th>Payroll Remarks</th>
+                {!isEmployee && <th>Amendment?</th>}
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((lr, i) => (
-                <motion.tr key={lr.id} initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:i*0.05 }}>
-                  {!isEmployee && <td style={{ fontWeight:600 }}>{lr.employee}</td>}
-                  <td><span className="badge badge-draft">{lr.type}</span></td>
-                  <td>{lr.from}</td><td>{lr.to}</td>
-                  <td><span className="badge badge-draft">{lr.days}d</span></td>
-                  <td style={{ color:'var(--on-surface-variant)', maxWidth:200, fontSize:'var(--font-size-sm)' }}>{lr.reason}</td>
-                  <td><StatusBadge status={lr.status} /></td>
-                  {canApprove && <td style={{ fontSize:'var(--font-size-sm)', color:'var(--on-surface-variant)' }}>{lr.approvedBy || '—'}</td>}
-                  {canApprove && (
-                    <td>
-                      <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                        {lr.status === 'pending' && (
-                          <>
-                            <motion.button className="btn btn-sm btn-success" whileHover={{ scale:1.05 }} onClick={() => changeStatus(lr.id,'approved')}>
-                              <CheckCircle size={12}/> Approve
-                            </motion.button>
-                            <motion.button className="btn btn-sm btn-danger" whileHover={{ scale:1.05 }} onClick={() => changeStatus(lr.id,'rejected')}>
-                              <XCircle size={12}/> Reject
-                            </motion.button>
-                          </>
-                        )}
-                        {lr.status !== 'pending' && user?.role === ROLES.ADMIN && (
-                          <motion.button className="btn btn-sm btn-secondary" whileHover={{ scale:1.05 }} title="Override decision"
-                            onClick={() => setOverride(override===lr.id ? null : lr.id)}>
-                            <ShieldAlert size={12}/> Override
-                          </motion.button>
-                        )}
-                        <AnimatePresence>
-                          {override === lr.id && (
-                            <motion.div initial={{ opacity:0, y:4 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
-                              style={{ position:'absolute', zIndex:50, background:'var(--surface-container)', border:'1px solid var(--outline-variant)', borderRadius:'var(--radius-md)', padding:'var(--space-3)', boxShadow:'var(--shadow-lg)', display:'flex', gap:8 }}>
-                              <button className="btn btn-sm btn-success" onClick={() => changeStatus(lr.id,'approved')}>Force Approve</button>
-                              <button className="btn btn-sm btn-danger"  onClick={() => changeStatus(lr.id,'rejected')}>Force Reject</button>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+              {loading && <tr><td colSpan={11} className="loading-state">Loading…</td></tr>}
+              {!loading && filtered.map((l,i) => (
+                <motion.tr key={l.id} initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:i*0.04 }}>
+                  {!isEmployee && <td style={{ fontWeight:600 }}>{l.employee || `Emp #${l.employeeId}`}</td>}
+                  <td><span className="badge badge-draft">{l.type || LABEL[l.leaveType] || l.leaveType}</span></td>
+                  <td style={{ fontFamily:'monospace', fontSize:'var(--font-size-sm)' }}>{l.from}</td>
+                  <td style={{ fontFamily:'monospace', fontSize:'var(--font-size-sm)' }}>{l.to}</td>
+                  <td style={{ textAlign:'center', fontWeight:600 }}>{l.days}</td>
+                  <td style={{ maxWidth:160, fontSize:'var(--font-size-sm)', color:'var(--on-surface-variant)' }}>{l.reason || '—'}</td>
+                  <td style={{ maxWidth:140, fontSize:'var(--font-size-sm)', color:'var(--on-surface-variant)' }}>{l.hrRemarks || '—'}</td>
+                  <td style={{ maxWidth:140, fontSize:'var(--font-size-sm)', color:'var(--on-surface-variant)' }}>{l.payrollRemarks || '—'}</td>
+                  {!isEmployee && (
+                    <td style={{ textAlign:'center' }}>
+                      {l.requiresPayrunAmendment
+                        ? <span className="badge badge-warning" title={`Affects payrun #${l.affectsPayrunId}`}>⚠ Amend</span>
+                        : <span style={{ color:'var(--on-surface-variant)', fontSize:'var(--font-size-sm)' }}>—</span>}
                     </td>
                   )}
+                  <td><StatusBadge status={l.status}/></td>
+                  <td>
+                    <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                      {rowActions(l).map(btn => (
+                        <motion.button key={btn.label} className={`btn btn-sm ${btn.variant}`} onClick={btn.onClick} whileHover={{ scale:1.03 }}>
+                          {btn.label}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </td>
                 </motion.tr>
               ))}
+              {!loading && filtered.length===0 && (
+                <tr><td colSpan={11} style={{ textAlign:'center', color:'var(--on-surface-variant)', padding:'var(--space-8)' }}>No leave applications found.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && <div style={{ textAlign:'center', padding:'var(--space-8)', color:'var(--on-surface-variant)' }}>No requests match your filters.</div>}
       </motion.div>
 
       {/* Apply Leave Modal */}
       <AnimatePresence>
-        {showModal && (
-          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={() => setShowModal(false)}>
-            <motion.div className="modal-content" initial={{ scale:0.9, y:20 }} animate={{ scale:1, y:0 }} exit={{ scale:0.9, y:20 }} onClick={e=>e.stopPropagation()}>
+        {showApply && (
+          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setShowApply(false)}>
+            <motion.div className="modal-content" initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.9, opacity:0 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:460 }}>
               <div className="modal-header">
-                <h3>Apply for Leave</h3>
-                <button className="btn btn-icon btn-ghost" onClick={() => setShowModal(false)}><X size={18}/></button>
+                <h3 className="modal-title">Apply Leave</h3>
+                <button className="btn btn-icon btn-ghost" onClick={()=>setShowApply(false)}><X size={18}/></button>
               </div>
-              <form onSubmit={submitLeave}>
-                <div className="modal-body">
+              <form onSubmit={handleApply} className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
+                <div className="form-group">
+                  <label className="form-label">Leave Type</label>
+                  <select className="form-select" value={form.leaveType} onChange={e=>setForm(f=>({...f, leaveType:e.target.value}))}>
+                    {LEAVE_TYPES.map(t=><option key={t} value={t}>{LABEL[t]}</option>)}
+                  </select>
+                </div>
+                <div className="form-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-3)' }}>
                   <div className="form-group">
-                    <label className="form-label">Leave Type *</label>
-                    <select name="leaveTypeId" value={form.leaveTypeId} onChange={handle} className="form-select" required>
-                      <option value="">Select leave type</option>
-                      {leaveTypes.map(lt => <option key={lt.id} value={lt.id}>{lt.name} {lt.isPaid?'(Paid)':'(Unpaid)'}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">From Date *</label>
-                      <input name="fromDate" type="date" value={form.fromDate} onChange={handle} className="form-input" required/>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">To Date *</label>
-                      <input name="toDate" type="date" value={form.toDate} onChange={handle} className="form-input" required/>
-                    </div>
+                    <label className="form-label">From Date</label>
+                    <input type="date" className="form-input" required value={form.fromDate} onChange={e=>setForm(f=>({...f, fromDate:e.target.value}))}/>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Reason</label>
-                    <textarea name="reason" value={form.reason} onChange={handle} className="form-textarea" placeholder="Brief reason for leave…" rows={3}/>
+                    <label className="form-label">To Date</label>
+                    <input type="date" className="form-input" required value={form.toDate} min={form.fromDate} onChange={e=>setForm(f=>({...f, toDate:e.target.value}))}/>
                   </div>
                 </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                  <motion.button type="submit" className="btn btn-primary" whileHover={{ scale:1.02 }}>Submit Request</motion.button>
+                <div className="form-group">
+                  <label className="form-label">Reason</label>
+                  <textarea className="form-input" rows={3} placeholder="Optional reason…" value={form.reason} onChange={e=>setForm(f=>({...f, reason:e.target.value}))} style={{ resize:'vertical' }}/>
+                </div>
+                <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
+                  <button type="button" className="btn btn-secondary" onClick={()=>setShowApply(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Submit Request</button>
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Review Modal */}
+      <AnimatePresence>
+        {reviewModal && (
+          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setReviewModal(null)}>
+            <motion.div className="modal-content" initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.9, opacity:0 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:400 }}>
+              <div className="modal-header">
+                <h3 className="modal-title" style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {reviewModal.action==='approve' ? <CheckCircle size={18} color="var(--success)"/> : <XCircle size={18} color="var(--error)"/>}
+                  {reviewModal.action==='approve' ? 'Approve' : 'Reject'} Leave
+                  <span className="badge badge-draft" style={{ marginLeft:4 }}>({reviewModal.stage === 'hr' ? 'HR Review' : 'Payroll Confirm'})</span>
+                </h3>
+                <button className="btn btn-icon btn-ghost" onClick={()=>setReviewModal(null)}><X size={18}/></button>
+              </div>
+              <div className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
+                <div className="form-group">
+                  <label className="form-label">Remarks (optional)</label>
+                  <textarea className="form-input" rows={3} placeholder="Add remarks…" value={remarks} onChange={e=>setRemarks(e.target.value)} style={{ resize:'vertical' }}/>
+                </div>
+                <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
+                  <button className="btn btn-secondary" onClick={()=>setReviewModal(null)}>Cancel</button>
+                  <button className={`btn ${reviewModal.action==='approve'?'btn-success':'btn-danger'}`} onClick={handleReview}>
+                    Confirm {reviewModal.action==='approve'?'Approval':'Rejection'}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}

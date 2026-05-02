@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { ROLES } from './utils/mockData';
+import { AuthProvider, useAuth, ROLES } from './context/AuthContext';
 import './styles/global.css';
 
 // Layout
