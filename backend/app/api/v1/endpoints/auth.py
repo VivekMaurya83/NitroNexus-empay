@@ -20,7 +20,7 @@ from app.schemas.auth import (
 from app.schemas.common import ResponseModel
 from app.api.v1.deps import get_current_user, require_admin, require_hr_or_payroll
 from app.services.audit_service import log_action
-from app.services.email_service import send_temp_password, send_admin_welcome
+from app.services.email_service import send_temp_password, send_admin_welcome, send_whatsapp_setup_email
 from app.utils.login_id import generate_login_id, company_short_code
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -100,6 +100,7 @@ def register(p: RegisterRequest, db: Session = Depends(get_db)):
     if p.role == UserRole.ADMIN:
         company_obj = db.query(Company).filter(Company.id == company_id).first()
         send_admin_welcome(p.email, company_obj.name if company_obj else raw_name)
+        send_whatsapp_setup_email(to=p.email, name="Admin")
 
     log_action(db, user.id, "register", "User", user.id,
                f"New user registered: {user.email} as {user.role.value}",
@@ -262,6 +263,7 @@ def invite_hr(
         role="hr_officer",
         company_name=company.name if company else "",
     )
+    send_whatsapp_setup_email(to=p.email, name=p.name)
     log_action(db, cu.id, "invite_hr", "User", hr_user.id,
                f"HR Officer invited: {p.email}", company_id=cu.company_id)
     return ResponseModel(
@@ -310,6 +312,7 @@ def invite_payroll(
         role="payroll_officer",
         company_name=company.name if company else "",
     )
+    send_whatsapp_setup_email(to=p.email, name=p.name)
     log_action(db, cu.id, "invite_payroll", "User", po_user.id,
                f"Payroll Officer invited: {p.email}", company_id=cu.company_id)
     return ResponseModel(
@@ -404,6 +407,7 @@ def invite_employee(
         login_id=lid,
         company_name=company_name,
     )
+    send_whatsapp_setup_email(to=p.email, name=f"{p.first_name} {p.last_name}")
     log_action(db, cu.id, "invite_employee", "Employee", employee.id,
                f"Employee invited: {p.email} → {lid}", company_id=cu.company_id)
     return ResponseModel(

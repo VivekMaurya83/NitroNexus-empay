@@ -6,6 +6,8 @@ from app.models.leave import LeaveApplication, LeaveAllocation, LeavePolicy
 from app.models.payroll import Payrun
 from app.models.enums import LeaveStatus, PayrunStatus
 from app.schemas.leave import LeaveApplicationCreate, LeaveReviewAction
+from app.services.whatsapp_service import send_whatsapp_message
+from app.services.email_service import send_leave_status_email
 
 
 def _count_days(start: date, end: date) -> float:
@@ -42,6 +44,20 @@ def apply_leave(db: Session, employee_id: int,
     db.add(app)
     db.commit()
     db.refresh(app)
+    
+    if app.employee and app.employee.phone:
+        leave_name = app.leave_type.value.replace('_', ' ').title()
+        msg = (
+            f"✅ *Leave Submitted*\n\n"
+            f"Hello {app.employee.first_name},\n"
+            f"Your leave request has been submitted successfully.\n\n"
+            f"*Details:*\n"
+            f"• Type: {leave_name}\n"
+            f"• Duration: {app.total_days} day(s)\n"
+            f"• Start Date: {app.start_date}"
+        )
+        send_whatsapp_message(app.employee.phone, msg)
+        
     return app
 
 
@@ -60,6 +76,19 @@ def cancel_leave(db: Session, application_id: int,
     app.status = LeaveStatus.CANCELLED
     db.commit()
     db.refresh(app)
+
+    if app.employee and app.employee.phone:
+        leave_name = app.leave_type.value.replace('_', ' ').title()
+        msg = (
+            f"🚫 *Leave Cancelled*\n\n"
+            f"Hello {app.employee.first_name},\n"
+            f"Your leave request has been cancelled.\n\n"
+            f"*Details:*\n"
+            f"• Type: {leave_name}\n"
+            f"• Start Date: {app.start_date}"
+        )
+        send_whatsapp_message(app.employee.phone, msg)
+
     return app
 
 
@@ -84,6 +113,36 @@ def hr_review_leave(db: Session, application_id: int, reviewer_id: int,
     app.hr_remarks = p.remarks
     db.commit()
     db.refresh(app)
+
+    if app.employee:
+        status_str = "APPROVED by HR" if app.status == LeaveStatus.HR_APPROVED else "REJECTED by HR"
+        leave_name = app.leave_type.value.replace('_', ' ').title()
+        
+        if app.employee.phone:
+            icon = "✅" if app.status == LeaveStatus.HR_APPROVED else "❌"
+            action = "APPROVED" if app.status == LeaveStatus.HR_APPROVED else "REJECTED"
+            msg = (
+                f"{icon} *HR Review Update*\n\n"
+                f"Hello {app.employee.first_name},\n"
+                f"Your leave request has been *{action}* by HR.\n\n"
+                f"*Details:*\n"
+                f"• Type: {leave_name}\n"
+                f"• Start Date: {app.start_date}"
+            )
+            if app.hr_remarks:
+                msg += f"\n\n*Remarks:* {app.hr_remarks}"
+            send_whatsapp_message(app.employee.phone, msg)
+            
+        if app.employee.user and app.employee.user.email:
+            send_leave_status_email(
+                to=app.employee.user.email,
+                name=f"{app.employee.first_name} {app.employee.last_name}",
+                leave_type=leave_name,
+                start_date=str(app.start_date),
+                status_str=status_str,
+                remarks=app.hr_remarks
+            )
+
     return app
 
 
@@ -110,6 +169,36 @@ def payroll_review_leave(db: Session, application_id: int, reviewer_id: int,
     app.payroll_remarks = p.remarks
     db.commit()
     db.refresh(app)
+
+    if app.employee:
+        status_str = "FINAL APPROVED" if app.status == LeaveStatus.APPROVED else "REJECTED by Payroll"
+        leave_name = app.leave_type.value.replace('_', ' ').title()
+        
+        if app.employee.phone:
+            icon = "🎉" if app.status == LeaveStatus.APPROVED else "❌"
+            action = "APPROVED" if app.status == LeaveStatus.APPROVED else "REJECTED"
+            msg = (
+                f"{icon} *Payroll Review Update*\n\n"
+                f"Hello {app.employee.first_name},\n"
+                f"Your leave request has been *{action}* by Payroll.\n\n"
+                f"*Details:*\n"
+                f"• Type: {leave_name}\n"
+                f"• Start Date: {app.start_date}"
+            )
+            if app.payroll_remarks:
+                msg += f"\n\n*Remarks:* {app.payroll_remarks}"
+            send_whatsapp_message(app.employee.phone, msg)
+            
+        if app.employee.user and app.employee.user.email:
+            send_leave_status_email(
+                to=app.employee.user.email,
+                name=f"{app.employee.first_name} {app.employee.last_name}",
+                leave_type=leave_name,
+                start_date=str(app.start_date),
+                status_str=status_str,
+                remarks=app.payroll_remarks
+            )
+
     return app
 
 
