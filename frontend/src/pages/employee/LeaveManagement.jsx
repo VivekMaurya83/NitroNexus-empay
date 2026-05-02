@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, AlertCircle, CheckCircle, XCircle, BarChart2, CalendarDays, Trash2 } from 'lucide-react';
+import { Plus, X, AlertCircle, CheckCircle, XCircle, BarChart2, CalendarDays, Trash2, Upload, Sparkles, FileText, Loader2, AlertTriangle } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../context/AuthContext';
@@ -9,6 +9,7 @@ import {
   hrReviewLeave, payrollReviewLeave, getLeaveAllocations,
 } from '../../services/leaveService';
 import { getAnalytics } from '../../services/analyticsService';
+import { extractTextFromImage, parseLeaveDetailsWithAI } from '../../services/ocrService';
 import api from '../../services/api';
 
 const getLeaveTypes = () => api.get('/leaves/types');
@@ -62,6 +63,43 @@ export default function LeaveManagement() {
   const [reviewModal, setReviewModal] = useState(null); 
   const [remarks,     setRemarks]     = useState('');
   const [form, setForm] = useState({ leaveType:'casual', fromDate:'', toDate:'', reason:'' });
+
+  // OCR autofill state
+  const [ocrFile,    setOcrFile]    = useState(null);
+  const [ocrStep,    setOcrStep]    = useState('idle'); // idle | ocr | ai | done | error
+  const [ocrNote,    setOcrNote]    = useState('');
+  const [ocrRawText, setOcrRawText] = useState('');
+  const fileInputRef = useRef(null);
+
+  const resetOcrState = () => {
+    setOcrFile(null); setOcrStep('idle'); setOcrNote(''); setOcrRawText('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleOcrUpload = async (file) => {
+    if (!file) return;
+    setOcrFile(file);
+    setOcrStep('ocr');
+    setOcrNote('');
+    try {
+      const text = await extractTextFromImage(file);
+      setOcrRawText(text);
+      setOcrStep('ai');
+      const parsed = await parseLeaveDetailsWithAI(text);
+      setForm(f => ({
+        ...f,
+        leaveType: parsed.leaveType || f.leaveType,
+        fromDate:  parsed.fromDate  || f.fromDate,
+        toDate:    parsed.toDate    || f.toDate,
+        reason:    parsed.reason    || f.reason,
+      }));
+      setOcrNote(parsed.notes || '');
+      setOcrStep('done');
+    } catch (err) {
+      setOcrStep('error');
+      setOcrNote(err.message);
+    }
+  };
 
   // Analytics state
   const [analyticsData, setAnalyticsData] = useState(null);
@@ -119,6 +157,7 @@ export default function LeaveManagement() {
     await applyLeave({ leaveType: form.leaveType, fromDate: form.fromDate, toDate: form.toDate, reason: form.reason });
     setShowApply(false);
     setForm({ leaveType:'casual', fromDate:'', toDate:'', reason:'' });
+    resetOcrState();
     load();
   };
 
@@ -316,32 +355,109 @@ export default function LeaveManagement() {
       {/* Apply Leave Modal */}
       <AnimatePresence>
         {showApply && (
-          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setShowApply(false)}>
-            <motion.div className="modal-content" initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.9, opacity:0 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:460 }}>
+          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>{setShowApply(false); resetOcrState();}}>
+            <motion.div className="modal-content" initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.9, opacity:0 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:500 }}>
               <div className="modal-header">
-                <h3 className="modal-title">Apply Leave</h3>
-                <button className="btn btn-icon btn-ghost" onClick={()=>setShowApply(false)}><X size={18}/></button>
+                <h3 className="modal-title">Apply for Leave</h3>
+                <button className="btn btn-icon btn-ghost" onClick={()=>{setShowApply(false); resetOcrState();}}><X size={18}/></button>
               </div>
-              <form onSubmit={handleApply} className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
-                <div className="form-group">
-                  <label className="form-label">Leave Type</label>
-                  <select className="form-select" value={form.leaveType} onChange={e=>setForm(f=>({...f, leaveType:e.target.value}))}>
-                    {LEAVE_TYPES.map(t=><option key={t} value={t}>{LABEL[t]}</option>)}
-                  </select>
+              <div className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
+
+                {/* ── OCR Upload Zone ── */}
+                <div style={{ border:'2px dashed var(--outline-variant)', borderRadius:'var(--radius-lg)', padding:'var(--space-4)', background:'var(--surface-container-lowest)', cursor:'pointer', transition:'border-color .2s', position:'relative' }}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); }}
+                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if(f) handleOcrUpload(f); }}
+                >
+                  <input ref={fileInputRef} type="file" accept="image/*,.pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if(f) handleOcrUpload(f); }} />
+                  <div style={{ display:'flex', alignItems:'center', gap:'var(--space-3)' }}>
+                    <div style={{ width:40, height:40, borderRadius:'var(--radius-md)', background:'var(--primary-container)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      {ocrStep === 'idle'  && <Upload size={18} color="var(--primary)" />}
+                      {(ocrStep === 'ocr' || ocrStep === 'ai') && <Loader2 size={18} color="var(--primary)" style={{ animation:'spin 1s linear infinite' }} />}
+                      {ocrStep === 'done'  && <Sparkles size={18} color="var(--success)" />}
+                      {ocrStep === 'error' && <AlertTriangle size={18} color="var(--error)" />}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      {ocrStep === 'idle' && (
+                        <>
+                          <div style={{ fontWeight:600, fontSize:'var(--font-size-sm)' }}>Upload Medical / Leave Document</div>
+                          <div style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', marginTop:2 }}>Drag & drop or click — SpaceOCR + Groq AI will autofill the form</div>
+                        </>
+                      )}
+                      {ocrStep === 'ocr' && (
+                        <>
+                          <div style={{ fontWeight:600, fontSize:'var(--font-size-sm)', color:'var(--primary)' }}>Extracting text from image…</div>
+                          <div style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', marginTop:2 }}>SpaceOCR is processing your document</div>
+                        </>
+                      )}
+                      {ocrStep === 'ai' && (
+                        <>
+                          <div style={{ fontWeight:600, fontSize:'var(--font-size-sm)', color:'var(--primary)' }}>AI is reading the document…</div>
+                          <div style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', marginTop:2 }}>Groq is extracting leave dates, type and reason</div>
+                        </>
+                      )}
+                      {ocrStep === 'done' && (
+                        <>
+                          <div style={{ fontWeight:600, fontSize:'var(--font-size-sm)', color:'var(--success)' }}>✓ Fields autofilled! Review and submit.</div>
+                          {ocrFile && <div style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', marginTop:2 }}>{ocrFile.name}</div>}
+                        </>
+                      )}
+                      {ocrStep === 'error' && (
+                        <>
+                          <div style={{ fontWeight:600, fontSize:'var(--font-size-sm)', color:'var(--error)' }}>Autofill failed</div>
+                          <div style={{ fontSize:'var(--font-size-xs)', color:'var(--error)', marginTop:2 }}>{ocrNote}</div>
+                        </>
+                      )}
+                    </div>
+                    {(ocrStep === 'done' || ocrStep === 'error') && (
+                      <button type="button" className="btn btn-icon btn-ghost btn-sm" onClick={e => { e.stopPropagation(); resetOcrState(); }} title="Clear" style={{ flexShrink:0 }}>
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                  {ocrStep === 'done' && ocrNote && (
+                    <div style={{ marginTop:'var(--space-3)', padding:'8px 12px', background:'#fff7ed', border:'1px solid #f59e0b40', borderRadius:'var(--radius-md)', fontSize:'var(--font-size-xs)', color:'#92400e', display:'flex', gap:6, alignItems:'flex-start' }}>
+                      <AlertTriangle size={12} color="#f59e0b" style={{ flexShrink:0, marginTop:1 }} />
+                      <span>{ocrNote}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="form-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-3)' }}>
-                  <div className="form-group"><label className="form-label">From Date</label><input type="date" className="form-input" required value={form.fromDate} onChange={e=>setForm(f=>({...f, fromDate:e.target.value}))}/></div>
-                  <div className="form-group"><label className="form-label">To Date</label><input type="date" className="form-input" required value={form.toDate} min={form.fromDate} onChange={e=>setForm(f=>({...f, toDate:e.target.value}))}/></div>
+
+                {/* ── Divider ── */}
+                <div style={{ display:'flex', alignItems:'center', gap:'var(--space-3)' }}>
+                  <div style={{ flex:1, height:1, background:'var(--outline-variant)' }} />
+                  <span style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', whiteSpace:'nowrap' }}>or fill manually</span>
+                  <div style={{ flex:1, height:1, background:'var(--outline-variant)' }} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Reason</label>
-                  <textarea className="form-input" rows={3} placeholder="Optional reason…" value={form.reason} onChange={e=>setForm(f=>({...f, reason:e.target.value}))} style={{ resize:'vertical' }}/>
-                </div>
-                <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
-                  <button type="button" className="btn btn-secondary" onClick={()=>setShowApply(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Submit Request</button>
-                </div>
-              </form>
+
+                {/* ── Form Fields ── */}
+                <form onSubmit={handleApply} style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
+                  <div className="form-group">
+                    <label className="form-label">Leave Type</label>
+                    <select className="form-select" value={form.leaveType} onChange={e=>setForm(f=>({...f, leaveType:e.target.value}))}>
+                      {LEAVE_TYPES.map(t=><option key={t} value={t}>{LABEL[t]}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-3)' }}>
+                    <div className="form-group">
+                      <label className="form-label">From Date</label>
+                      <input type="date" className={`form-input ${ocrStep==='done' && form.fromDate ? 'ocr-filled' : ''}`} required value={form.fromDate} onChange={e=>setForm(f=>({...f, fromDate:e.target.value}))}/>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">To Date</label>
+                      <input type="date" className={`form-input ${ocrStep==='done' && form.toDate ? 'ocr-filled' : ''}`} required value={form.toDate} min={form.fromDate} onChange={e=>setForm(f=>({...f, toDate:e.target.value}))}/>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Reason</label>
+                    <textarea className={`form-input ${ocrStep==='done' && form.reason ? 'ocr-filled' : ''}`} rows={3} placeholder="Optional reason…" value={form.reason} onChange={e=>setForm(f=>({...f, reason:e.target.value}))} style={{ resize:'vertical' }}/>
+                  </div>
+                  <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
+                    <button type="button" className="btn btn-secondary" onClick={()=>{setShowApply(false); resetOcrState();}}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={ocrStep==='ocr'||ocrStep==='ai'}>Submit Request</button>
+                  </div>
+                </form>
+              </div>
             </motion.div>
           </motion.div>
         )}

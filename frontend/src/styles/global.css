@@ -292,3 +292,10 @@ h6 { font-size: var(--font-size-sm); font-weight: 600; letter-spacing: 0.05em; t
   .tab-btn { white-space: nowrap; }
 }
 
+/* === OCR AUTOFILL === */
+.ocr-filled {
+  border-color: var(--success) !important;
+  background-color: var(--success-container) !important;
+  transition: all var(--transition-base);
+}
+
