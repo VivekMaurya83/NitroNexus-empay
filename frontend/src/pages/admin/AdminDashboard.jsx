@@ -74,7 +74,7 @@ export default function AdminDashboard() {
 
         const now = new Date();
         const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-        const attData = await api.get(`/attendance/?date=${today}&limit=100`).catch(() => null);
+        const attData = await api.get(`/attendance/today`).catch(() => null);
         if (!cancelled) {
           const attList = attData?.records || attData || [];
           const present = attList.filter(a => a.status === 'present' || a.status === 'late' || a.status === 'work_from_home').length;
