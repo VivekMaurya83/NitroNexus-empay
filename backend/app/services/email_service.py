@@ -163,3 +163,69 @@ def send_admin_welcome(to: str, company_name: str) -> bool:
     <p>We're excited to have you on board.</p>
     """
     return send_email(to, "Welcome to EmPay — Company Registered!", _base_template(content))
+
+
+def send_leave_application_email(to: str, name: str, leave_type: str, from_date: str, to_date: str, days: float) -> bool:
+    """Send an email to the employee confirming their leave application."""
+    content = f"""
+    <p>Hello <strong>{name}</strong>,</p>
+    <p>We have successfully received your leave application.</p>
+    <div class="cred-box">
+      <div class="cred-row">
+        <span class="cred-label">Leave Type</span>
+        <span class="cred-value">{leave_type}</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Duration</span>
+        <span class="cred-value">{from_date} to {to_date}</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Total Days</span>
+        <span class="cred-value">{days}</span>
+      </div>
+    </div>
+    <p>Your request is currently <strong>Pending</strong> review by HR.</p>
+    <p>You will be notified once a decision is made.</p>
+    """
+    subject = f"Leave Application Received: {leave_type}"
+    return send_email(to, subject, _base_template(content))
+
+
+def send_leave_status_update_email(to: str, name: str, leave_type: str, from_date: str, to_date: str, status: str, remarks: str) -> bool:
+    """Send an email to the employee when their leave is approved or rejected."""
+    # status could be HR_APPROVED, APPROVED, REJECTED
+    status_display = status.replace("_", " ").title()
+    color = "#10b981" if "Approved" in status_display else "#ef4444"
+    
+    remarks_html = ""
+    if remarks:
+        remarks_html = f"""
+        <div class="cred-row" style="margin-top: 10px;">
+          <span class="cred-label">Remarks</span>
+          <span class="cred-value" style="font-size: 14px; font-weight: normal; color: #cbd5e1;">{remarks}</span>
+        </div>
+        """
+
+    content = f"""
+    <p>Hello <strong>{name}</strong>,</p>
+    <p>There is an update regarding your recent leave application.</p>
+    <div class="cred-box">
+      <div class="cred-row">
+        <span class="cred-label">Leave Type</span>
+        <span class="cred-value">{leave_type}</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Duration</span>
+        <span class="cred-value">{from_date} to {to_date}</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Status</span>
+        <span class="cred-value" style="color: {color};">{status_display}</span>
+      </div>
+      {remarks_html}
+    </div>
+    <p>If you have any questions, please contact your HR department.</p>
+    """
+    subject = f"Leave Application Update: {status_display}"
+    return send_email(to, subject, _base_template(content))
+

@@ -6,6 +6,8 @@ from app.models.leave import LeaveApplication, LeaveAllocation, LeavePolicy
 from app.models.payroll import Payrun
 from app.models.enums import LeaveStatus, PayrunStatus
 from app.schemas.leave import LeaveApplicationCreate, LeaveReviewAction
+from app.models.employee import Employee
+from app.services import email_service
 
 
 def _count_days(start: date, end: date) -> float:
@@ -42,6 +44,21 @@ def apply_leave(db: Session, employee_id: int,
     db.add(app)
     db.commit()
     db.refresh(app)
+
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if emp and emp.user:
+        try:
+            email_service.send_leave_application_email(
+                to=emp.user.email,
+                name=f"{emp.first_name} {emp.last_name}",
+                leave_type=p.leave_type.value.replace("_", " ").title(),
+                from_date=str(p.start_date),
+                to_date=str(p.end_date),
+                days=float(total),
+            )
+        except Exception:
+            pass
+
     return app
 
 
@@ -84,6 +101,22 @@ def hr_review_leave(db: Session, application_id: int, reviewer_id: int,
     app.hr_remarks = p.remarks
     db.commit()
     db.refresh(app)
+
+    emp = app.employee
+    if emp and emp.user:
+        try:
+            email_service.send_leave_status_update_email(
+                to=emp.user.email,
+                name=f"{emp.first_name} {emp.last_name}",
+                leave_type=app.leave_type.value.replace("_", " ").title(),
+                from_date=str(app.start_date),
+                to_date=str(app.end_date),
+                status=app.status.value,
+                remarks=app.hr_remarks or "",
+            )
+        except Exception:
+            pass
+
     return app
 
 
@@ -110,6 +143,22 @@ def payroll_review_leave(db: Session, application_id: int, reviewer_id: int,
     app.payroll_remarks = p.remarks
     db.commit()
     db.refresh(app)
+
+    emp = app.employee
+    if emp and emp.user:
+        try:
+            email_service.send_leave_status_update_email(
+                to=emp.user.email,
+                name=f"{emp.first_name} {emp.last_name}",
+                leave_type=app.leave_type.value.replace("_", " ").title(),
+                from_date=str(app.start_date),
+                to_date=str(app.end_date),
+                status=app.status.value,
+                remarks=app.payroll_remarks or "",
+            )
+        except Exception:
+            pass
+
     return app
 
 
