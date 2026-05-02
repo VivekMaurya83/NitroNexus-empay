@@ -6,3 +6,4 @@ from app.models.attendance import Attendance
 from app.models.leave import LeavePolicy, LeaveAllocation, LeaveApplication
 from app.models.payroll import Payrun, Payslip, PayrunAmendment
 from app.models.audit import AuditLog
+from app.models.holiday import Holiday

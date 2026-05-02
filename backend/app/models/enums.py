@@ -49,3 +49,9 @@ class PayrunStatus(str, Enum):
     COMPLETED = "completed"
     AMENDED = "amended"
     FAILED = "failed"
+
+class HolidayType(str, Enum):
+    NATIONAL  = "national"    # Republic Day, Independence Day etc.
+    REGIONAL  = "regional"    # State-specific holidays
+    COMPANY   = "company"     # Company declared holidays
+    RESTRICTED = "restricted" # Optional/restricted holidays

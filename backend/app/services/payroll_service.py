@@ -33,16 +33,24 @@ def get_professional_tax(gross: Decimal, state: str) -> Decimal:
     return Decimal("200")
 
 def get_working_days(month: int, year: int, join_date: date,
-                     leave_date: Optional[date]) -> int:
+                     leave_date: Optional[date],
+                     holiday_dates: set = None) -> int:
+    """
+    Calculates actual working days in a month for an employee.
+    Excludes: Sundays, company/national holidays (non-optional).
+    Respects employee join date and leave/termination date.
+    """
     first = date(year, month, 1)
     last  = date(year, month, monthrange(year, month)[1])
     start = max(first, join_date)
     end   = min(last, leave_date) if leave_date else last
     if start > end:
         return 0
+
+    holidays = holiday_dates or set()   # empty set = old behavior (safe fallback)
     count, current = 0, start
     while current <= end:
-        if current.weekday() != 6:   # exclude Sundays
+        if current.weekday() != 6 and current not in holidays:
             count += 1
         current += timedelta(days=1)
     return count
@@ -67,8 +75,11 @@ def detect_anomalies(data: dict, prev: Optional[Payslip]) -> Tuple[Optional[str]
 def _build_payslip(db: Session, employee: Employee,
                    payrun: Payrun, salary: SalaryStructure) -> Payslip:
     month, year = payrun.month, payrun.year
+
+    from app.services.holiday_service import get_holiday_dates
+    holiday_dates = get_holiday_dates(db, payrun.company_id, month, year)
     total_wd = get_working_days(month, year, employee.date_of_joining,
-                                employee.date_of_leaving)
+                                employee.date_of_leaving, holiday_dates)
 
     att = db.query(Attendance).filter(
         Attendance.employee_id == employee.id,
