@@ -73,18 +73,20 @@ export default function LeaveManagement() {
   // ── Decide which actions to show per row ────────────────────────────────────
   const rowActions = (leave) => {
     const buttons = [];
-    if (isEmployee && leave.status === 'pending') {
+    const status = (leave.status || '').toLowerCase();
+    
+    if (isEmployee && status === 'pending') {
       buttons.push({ label:'Cancel', variant:'btn-danger', onClick:()=>handleCancel(leave.id) });
     }
     // HR can review pending → hr_approved / rejected
-    if ((isAdmin || isHR) && leave.status === 'pending') {
+    if ((isAdmin || isHR) && status === 'pending') {
       buttons.push(
         { label:'Approve', variant:'btn-success', onClick:()=>{ setReviewModal({ id:leave.id, action:'approve', stage:'hr' }); setRemarks(''); }},
         { label:'Reject',  variant:'btn-danger',  onClick:()=>{ setReviewModal({ id:leave.id, action:'reject',  stage:'hr' }); setRemarks(''); }},
       );
     }
     // Payroll (or Admin) can confirm hr_approved → approved / rejected
-    if ((isAdmin || isPayroll) && leave.status === 'hr_approved') {
+    if ((isAdmin || isPayroll) && status === 'hr_approved') {
       buttons.push(
         { label:'Confirm', variant:'btn-success', onClick:()=>{ setReviewModal({ id:leave.id, action:'approve', stage:'payroll' }); setRemarks(''); }},
         { label:'Reject',  variant:'btn-danger',  onClick:()=>{ setReviewModal({ id:leave.id, action:'reject',  stage:'payroll' }); setRemarks(''); }},

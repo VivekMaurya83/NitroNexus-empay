@@ -18,6 +18,9 @@ export default function UserProfile() {
     address:   user?.address  || '',
     panNumber: user?.panNumber || '',
     ifscCode:  user?.ifscCode || '',
+    bankName:  user?.bankName || '',
+    accountNumber: user?.accountNumber || '',
+    aadharCard: user?.aadharCard || '',
     about:     resumeData.about,
   });
   const [skills,  setSkills]  = useState([...resumeData.skills]);
@@ -77,6 +80,9 @@ export default function UserProfile() {
                 </div>
               ))}
             </div>
+            <button type="button" className="btn btn-secondary" style={{ width:'100%', marginTop:'var(--space-4)' }} onClick={() => alert('Change Password dialog would open here')}>
+              Change Password
+            </button>
           </motion.div>
 
           {/* Right panel */}
@@ -100,10 +106,20 @@ export default function UserProfile() {
                 <div className="form-group"><label className="form-label">Phone</label><input name="phone" value={form.phone} onChange={handle} className="form-input"/></div>
                 <div className="form-row">
                   <div className="form-group"><label className="form-label">Date of Birth</label><input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={handle} className="form-input"/></div>
+                  <div className="form-group"><label className="form-label">Address</label><input name="address" value={form.address} onChange={handle} className="form-input"/></div>
+                </div>
+                
+                <div className="form-section-title" style={{ marginTop:'var(--space-4)' }}>Bank & Identity Details</div>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Aadhar Card</label><input name="aadharCard" value={form.aadharCard} onChange={handle} className="form-input"/></div>
                   <div className="form-group"><label className="form-label">PAN Number</label><input name="panNumber" value={form.panNumber} onChange={handle} className="form-input"/></div>
                 </div>
-                <div className="form-group"><label className="form-label">Address</label><textarea name="address" value={form.address} onChange={handle} className="form-input" rows={2}/></div>
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Bank Name</label><input name="bankName" value={form.bankName} onChange={handle} className="form-input"/></div>
+                  <div className="form-group"><label className="form-label">Account Number</label><input name="accountNumber" value={form.accountNumber} onChange={handle} className="form-input"/></div>
+                </div>
                 <div className="form-group"><label className="form-label">Bank IFSC Code</label><input name="ifscCode" value={form.ifscCode} onChange={handle} className="form-input"/></div>
+
                 <div className="form-section-title" style={{ marginTop:'var(--space-4)' }}>About</div>
                 <div className="form-group"><textarea name="about" value={form.about} onChange={handle} className="form-textarea" rows={4} placeholder="Tell us about yourself…"/></div>
                 <div style={{ display:'flex', justifyContent:'flex-end', gap:'var(--space-3)', marginTop:'var(--space-4)' }}>
