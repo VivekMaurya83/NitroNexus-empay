@@ -105,3 +105,85 @@ ${ocrText}
     throw new Error('Groq returned invalid JSON: ' + cleaned.slice(0, 100));
   }
 }
+
+/**
+ * Uses Groq to parse unstructured CSV text into an array of strictly typed Employee objects.
+ * @param {string} csvText - The raw text from the CSV upload
+ * @param {Array<{id, name}>} departmentsList - List of available departments
+ * @returns {Promise<Array<object>>} - Array of parsed employee data objects
+ */
+export async function parseCSVWithGroq(csvText, departmentsList) {
+  const deptsJson = JSON.stringify(departmentsList.map(d => ({ id: d.id, name: d.name })));
+  
+  const prompt = `You are a strict data processing assistant. 
+I have a raw CSV/Excel file containing employee details. The columns might be messy, unstructured, or randomly placed.
+Intelligently classify the data into a strict JSON array of objects.
+Max 10 employees. Ignore empty rows.
+
+Valid Employment Types: "full_time", "part_time", "contract", "intern"
+Valid Departments: ${deptsJson}
+
+Return ONLY a JSON array of objects (no markdown, no preamble) where each object strictly has:
+{
+  "first_name": "extracted given name (required)",
+  "last_name": "extracted surname (required)",
+  "email": "extracted email (required)",
+  "date_of_joining": "YYYY-MM-DD format (required)",
+  "employment_type": "one of the valid types, default to 'full_time'",
+  "phone": "extracted phone or empty string",
+  "date_of_birth": "YYYY-MM-DD format or empty string",
+  "department_id": "if a department name closely matches one of the Valid Departments, put its numeric ID here, otherwise null"
+}
+
+Raw Data:
+---
+${csvText}
+---`;
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Groq API request failed (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const rawText = data?.choices?.[0]?.message?.content;
+  if (!rawText) throw new Error('Groq returned no content.');
+
+  let jsonStr = rawText.trim();
+  
+  // 1. Try to extract from a ```json block
+  const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (jsonMatch && jsonMatch[1].trim().startsWith('[')) {
+    jsonStr = jsonMatch[1].trim();
+  } else {
+    // 2. Fallback: Find the first '[' and last ']'
+    const firstIdx = rawText.indexOf('[');
+    const lastIdx = rawText.lastIndexOf(']');
+    if (firstIdx !== -1 && lastIdx !== -1 && lastIdx > firstIdx) {
+      jsonStr = rawText.substring(firstIdx, lastIdx + 1);
+    }
+  }
+
+  try {
+    const parsedArray = JSON.parse(jsonStr);
+    if (!Array.isArray(parsedArray)) throw new Error('Root is not an array');
+    return parsedArray.slice(0, 10); // Enforce max 10
+  } catch (err) {
+    console.error("Groq Raw Response:", rawText);
+    console.error("Attempted JSON string:", jsonStr);
+    throw new Error('Groq returned invalid JSON array. Check the console for raw output.');
+  }
+}

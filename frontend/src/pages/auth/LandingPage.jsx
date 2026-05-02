@@ -22,36 +22,36 @@ function homeFor(role) {
 const FEATURES = [
   {
     key: ROLES.ADMIN,
-    label: 'Administrator',
+    label: 'Command Center',
     icon: Shield,
-    desc: 'Complete oversight of organization setup, user management, and core payroll configurations.',
+    desc: 'Complete oversight of organizational hierarchy, advanced role-based access control, and master payroll configurations.',
     gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
     glow: 'rgba(99,102,241,0.2)',
     features: ['Company Settings', 'Role Management', 'System Audits']
   },
   {
     key: ROLES.HR,
-    label: 'HR Officer',
+    label: 'Talent Management',
     icon: Users,
-    desc: 'Streamlined employee lifecycle management, attendance tracking, and leave administration.',
+    desc: 'Streamlined employee lifecycle tracking, seamless AI-powered bulk onboarding, and intelligent leave administration.',
     gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
     glow: 'rgba(16,185,129,0.2)',
-    features: ['Employee Directory', 'Leave Approvals', 'Attendance Logs']
+    features: ['Employee Directory', 'Leave Approvals', 'AI Onboarding']
   },
   {
     key: ROLES.PAYROLL,
-    label: 'Payroll Officer',
+    label: 'Financial Operations',
     icon: Calculator,
-    desc: 'Automated salary processing, statutory compliance, and detailed financial reporting.',
+    desc: 'Automated salary processing, robust statutory compliance engines, and detailed real-time financial reporting.',
     gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
     glow: 'rgba(245,158,11,0.2)',
     features: ['Payrun Execution', 'Salary Structures', 'Tax Reports']
   },
   {
     key: ROLES.EMPLOYEE,
-    label: 'Employee',
+    label: 'Self-Service Hub',
     icon: User,
-    desc: 'Self-service portal for personal data updates, payslip downloads, and time-off requests.',
+    desc: 'Intuitive self-service portal for instant payslip access, dynamic profile management, and effortless time-off requests.',
     gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
     glow: 'rgba(236,72,153,0.2)',
     features: ['Payslip Access', 'Leave Application', 'Profile Management']
@@ -249,18 +249,11 @@ export default function LandingPage() {
       </footer>
 
       <style>{`
-        :root {
-          --lp-bg: #030712;
-          --lp-surface: #111827;
-          --lp-border: #1f2937;
-          --lp-primary: #6366f1;
-        }
-
         .landing-page {
           min-height: 100vh;
-          background: var(--lp-bg);
-          color: #f3f4f6;
-          font-family: 'Inter', sans-serif;
+          background: var(--surface);
+          color: var(--on-surface);
+          font-family: var(--font-family);
           position: relative;
           overflow-x: hidden;
         }
@@ -273,7 +266,7 @@ export default function LandingPage() {
           z-index: 0;
           pointer-events: none;
         }
-        .blob-1 { width: 600px; height: 600px; background: var(--lp-primary); top: -200px; right: -100px; }
+        .blob-1 { width: 600px; height: 600px; background: var(--primary); top: -200px; right: -100px; }
         .blob-2 { width: 500px; height: 500px; background: #ec4899; bottom: -100px; left: -100px; }
 
         .landing-nav {
@@ -287,65 +280,65 @@ export default function LandingPage() {
         @media (max-width: 768px) { .landing-nav { padding: 24px 20px; } }
 
         .landing-logo { display: flex; align-items: center; gap: 12px; }
-        .logo-icon { width: 40px; height: 40px; background: var(--lp-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .logo-icon { width: 40px; height: 40px; background: var(--primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--on-primary); }
         .logo-text { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
-        .logo-badge { font-size: 10px; font-weight: 700; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); padding: 2px 8px; border-radius: 20px; color: #a5b4fc; }
+        .logo-badge { font-size: 10px; font-weight: 700; background: var(--primary-container); border: 1px solid var(--primary); padding: 2px 8px; border-radius: 20px; color: var(--on-primary-container); }
 
-        .nav-register { background: none; border: 1px solid var(--lp-border); color: #f3f4f6; padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
-        .nav-register:hover { background: rgba(255,255,255,0.05); border-color: #4b5563; }
+        .nav-register { background: none; border: 1px solid var(--outline-variant); color: var(--on-surface); padding: 10px 20px; border-radius: 10px; font-size: var(--font-size-sm); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+        .nav-register:hover { background: var(--surface-container); border-color: var(--outline); }
 
         .landing-content { max-width: 1200px; margin: 0 auto; padding: 60px 20px; position: relative; z-index: 10; }
 
         .hero-section { display: grid; grid-template-columns: 1fr 450px; gap: 80px; align-items: center; margin-bottom: 120px; }
         @media (max-width: 1024px) { .hero-section { grid-template-columns: 1fr; text-align: center; gap: 60px; } .hero-login { margin: 0 auto; } .hero-benefits { justify-content: center; } }
 
-        .hero-tag { display: inline-flex; align-items: center; gap: 8px; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); padding: 6px 16px; border-radius: 100px; font-size: 13px; font-weight: 600; color: #a5b4fc; margin-bottom: 24px; }
+        .hero-tag { display: inline-flex; align-items: center; gap: 8px; background: var(--primary-container); border: 1px solid var(--primary); padding: 6px 16px; border-radius: 100px; font-size: 13px; font-weight: 600; color: var(--on-primary-container); margin-bottom: 24px; }
         .hero-title { font-size: 64px; font-weight: 800; line-height: 1.1; margin-bottom: 24px; letter-spacing: -2px; }
-        .text-gradient { background: linear-gradient(135deg, #a5b4fc, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero-desc { font-size: 18px; color: #9ca3af; line-height: 1.6; max-width: 540px; margin-bottom: 40px; }
+        .text-gradient { background: linear-gradient(135deg, var(--primary-light), #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero-desc { font-size: var(--font-size-lg); color: var(--on-surface-variant); line-height: 1.6; max-width: 540px; margin-bottom: 40px; }
 
         .hero-benefits { display: flex; flex-direction: column; gap: 16px; margin-top: 40px; }
-        .benefit-item { display: flex; align-items: center; gap: 12px; font-size: 15px; color: #d1d5db; }
-        .text-primary { color: var(--lp-primary); }
+        .benefit-item { display: flex; align-items: center; gap: 12px; font-size: var(--font-size-md); color: var(--on-surface); }
+        .text-primary { color: var(--primary); }
 
-        .login-card { background: var(--lp-surface); border: 1px solid var(--lp-border); border-radius: 24px; padding: 40px; width: 100%; max-width: 450px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
-        .login-header h3 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-        .login-header p { font-size: 14px; color: #9ca3af; margin-bottom: 32px; }
+        .login-card { background: var(--surface-container-lowest); border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); padding: 40px; width: 100%; max-width: 450px; box-shadow: var(--shadow-xl); }
+        .login-header h3 { font-size: var(--font-size-xl); font-weight: 700; margin-bottom: 8px; }
+        .login-header p { font-size: var(--font-size-sm); color: var(--on-surface-variant); margin-bottom: 32px; }
 
         .login-form { display: flex; flex-direction: column; gap: 24px; }
-        .form-group label { display: block; font-size: 13px; font-weight: 600; color: #9ca3af; margin-bottom: 8px; }
+        .form-group label { display: block; font-size: var(--font-size-sm); font-weight: 600; color: var(--on-surface-variant); margin-bottom: 8px; }
         .input-wrap { position: relative; }
-        .input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #6b7280; }
-        .input-wrap input { width: 100%; background: #030712; border: 1px solid var(--lp-border); border-radius: 12px; padding: 14px 14px 14px 44px; color: #fff; font-size: 15px; transition: all 0.2s; }
-        .input-wrap input:focus { border-color: var(--lp-primary); outline: none; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
-        .pass-toggle { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6b7280; cursor: pointer; display: flex; }
+        .input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--on-surface-variant); }
+        .input-wrap input { width: 100%; background: var(--surface-container); border: 1px solid var(--outline-variant); border-radius: var(--radius-md); padding: 14px 14px 14px 44px; color: var(--on-surface); font-size: var(--font-size-md); transition: all 0.2s; }
+        .input-wrap input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 4px var(--primary-container); }
+        .pass-toggle { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--on-surface-variant); cursor: pointer; display: flex; }
 
-        .login-error { font-size: 13px; color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .login-error { font-size: var(--font-size-sm); color: var(--error); background: var(--error-container); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid rgba(239, 68, 68, 0.2); }
 
-        .login-btn { background: var(--lp-primary); color: #fff; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
-        .login-btn:hover { background: #4f46e5; transform: translateY(-1px); }
+        .login-btn { background: var(--primary); color: var(--on-primary); border: none; border-radius: var(--radius-md); padding: 16px; font-size: var(--font-size-md); font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+        .login-btn:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .login-btn:active { transform: translateY(0); }
         .login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
-        .login-footer { margin-top: 32px; text-align: center; font-size: 14px; color: #9ca3af; }
-        .login-footer button { background: none; border: none; color: var(--lp-primary); font-weight: 600; cursor: pointer; margin-left: 6px; }
+        .login-footer { margin-top: 32px; text-align: center; font-size: var(--font-size-sm); color: var(--on-surface-variant); }
+        .login-footer button { background: none; border: none; color: var(--primary); font-weight: 600; cursor: pointer; margin-left: 6px; }
         .login-footer button:hover { text-decoration: underline; }
 
         .features-section { padding-top: 40px; }
         .section-header { text-align: center; margin-bottom: 60px; }
-        .section-title { font-size: 36px; font-weight: 800; margin-bottom: 16px; }
-        .section-desc { font-size: 18px; color: #9ca3af; }
+        .section-title { font-size: var(--font-size-3xl); font-weight: 800; margin-bottom: 16px; }
+        .section-desc { font-size: var(--font-size-lg); color: var(--on-surface-variant); }
 
         .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
-        .feature-card { background: var(--lp-surface); border: 1px solid var(--lp-border); border-radius: 20px; padding: 32px; position: relative; overflow: hidden; }
+        .feature-card { background: var(--surface-container-lowest); border: 1px solid var(--outline-variant); border-radius: var(--radius-lg); padding: 32px; position: relative; overflow: hidden; }
         .feature-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
-        .feature-label { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
-        .feature-text { font-size: 14px; color: #9ca3af; line-height: 1.6; margin-bottom: 24px; min-height: 60px; }
+        .feature-label { font-size: var(--font-size-xl); font-weight: 700; margin-bottom: 12px; color: var(--on-surface); }
+        .feature-text { font-size: var(--font-size-sm); color: var(--on-surface-variant); line-height: 1.6; margin-bottom: 24px; min-height: 60px; }
         .feature-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-        .feature-list li { font-size: 13px; font-weight: 600; color: #d1d5db; display: flex; align-items: center; gap: 8px; }
+        .feature-list li { font-size: var(--font-size-sm); font-weight: 600; color: var(--on-surface); display: flex; align-items: center; gap: 8px; }
         .feature-glow { position: absolute; top: -50px; right: -50px; width: 120px; height: 120px; border-radius: 50%; filter: blur(40px); opacity: 0.5; z-index: 0; }
 
-        .landing-footer { margin-top: 120px; padding: 40px 0; border-top: 1px solid var(--lp-border); display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #6b7280; }
+        .landing-footer { max-width: 1200px; margin: 120px auto 0; padding: 40px 20px; border-top: 1px solid var(--outline-variant); display: flex; justify-content: space-between; align-items: center; font-size: var(--font-size-sm); color: var(--on-surface-variant); }
         .footer-links { display: flex; gap: 24px; }
         @media (max-width: 640px) { .landing-footer { flex-direction: column; gap: 20px; text-align: center; } }
       `}</style>
