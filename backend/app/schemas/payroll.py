@@ -78,7 +78,27 @@ class PayslipOut(BaseModel):
     anomaly_flags: Optional[str] = None
     is_amended: bool
     amendment_reason: Optional[str] = None
+    employee_name: Optional[str] = None
+    employee_code: Optional[str] = None
     model_config = {"from_attributes": True}
+
+class PayslipUpdate(BaseModel):
+    total_working_days: Optional[int] = None
+    days_present: Optional[float] = None
+    days_absent: Optional[float] = None
+    basic: Optional[float] = None
+    hra: Optional[float] = None
+    conveyance: Optional[float] = None
+    medical: Optional[float] = None
+    special_allowance: Optional[float] = None
+    lta: Optional[float] = None
+    bonus: Optional[float] = None
+    pf_employee: Optional[float] = None
+    professional_tax: Optional[float] = None
+    tds: Optional[float] = None
+    other_deductions: Optional[float] = None
+    is_anomalous: Optional[bool] = None
+    anomaly_flags: Optional[str] = None
 
 class AmendmentCreate(BaseModel):
     leave_application_id: int

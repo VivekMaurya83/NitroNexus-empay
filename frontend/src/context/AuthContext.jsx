@@ -131,10 +131,17 @@ export function AuthProvider({ children }) {
     return api.post('/auth/register', data);
   }, []);
 
-  // ── logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(() => {
     clearTokens();
     setUser(null);
+  }, []);
+
+  // ── changePassword ─────────────────────────────────────────────────────────
+  const changePassword = useCallback(async (oldPassword, newPassword) => {
+    return api.patch('/auth/me/change-password', {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
   }, []);
 
   // ── permission check ───────────────────────────────────────────────────────
@@ -145,7 +152,7 @@ export function AuthProvider({ children }) {
   }, [user?.role]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, can, checkOnboarding, ROLES }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, changePassword, can, checkOnboarding, ROLES }}>
       {children}
     </AuthContext.Provider>
   );

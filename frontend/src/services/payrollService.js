@@ -33,10 +33,11 @@ function adaptPayrun(p) {
   };
 }
 
-function adaptPayslip(s, name='') {
+function adaptPayslip(s) {
   return {
     id: s.id, payrunId: s.payrun_id, employeeId: s.employee_id,
-    employee: name || `Employee #${s.employee_id}`,
+    employee: s.employee_name || `Employee #${s.employee_id}`,
+    employeeCode: s.employee_code,
     totalWorkingDays: s.total_working_days, daysPresent: s.days_present,
     daysAbsent: s.days_absent, paidLeaveDays: s.paid_leave_days,
     unpaidLeaveDays: s.unpaid_leave_days, effectivePaidDays: s.effective_paid_days,
@@ -113,6 +114,12 @@ export async function downloadPayslip(payslipId) {
   const a = document.createElement('a');
   a.href = url; a.download = `payslip_${payslipId}.pdf`; a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function updatePayslip(payslipId, payload) {
+  if (USE_MOCK) return {};
+  const data = await api.patch(`/payroll/payslips/${payslipId}`, payload);
+  return adaptPayslip(data);
 }
 
 // ── Payroll Rules (no backend endpoint — local only) ──────────────────────────
