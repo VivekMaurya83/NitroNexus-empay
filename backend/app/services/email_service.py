@@ -6,6 +6,7 @@ import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,8 @@ def _smtp_configured() -> bool:
     return bool(settings.MAIL_USERNAME and settings.MAIL_PASSWORD and settings.MAIL_FROM)
 
 
-def send_email(to: str, subject: str, html_body: str) -> bool:
-    """Send an HTML email. Returns True on success, False on failure."""
+def send_email(to: str, subject: str, html_body: str, attachments: list[tuple[str, bytes]] = None) -> bool:
+    """Send an HTML email with optional attachments. Returns True on success, False on failure."""
     if not _smtp_configured():
         logger.warning(
             "[EMAIL — NOT SENT — SMTP not configured]\n"
@@ -24,6 +25,8 @@ def send_email(to: str, subject: str, html_body: str) -> bool:
             f"  Subject: {subject}\n"
             f"  Body:    {html_body[:400]}…"
         )
+        if attachments:
+            logger.warning(f"  Attachments: {[name for name, _ in attachments]}")
         return False
 
     msg = MIMEMultipart("alternative")
@@ -31,6 +34,12 @@ def send_email(to: str, subject: str, html_body: str) -> bool:
     msg["From"]    = settings.MAIL_FROM
     msg["To"]      = to
     msg.attach(MIMEText(html_body, "html"))
+    
+    if attachments:
+        for filename, file_bytes in attachments:
+            part = MIMEApplication(file_bytes, Name=filename)
+            part['Content-Disposition'] = f'attachment; filename="{filename}"'
+            msg.attach(part)
 
     try:
         if settings.MAIL_SSL_TLS:
@@ -165,6 +174,85 @@ def send_admin_welcome(to: str, company_name: str) -> bool:
     return send_email(to, "Welcome to EmPay — Company Registered!", _base_template(content))
 
 
+
+def send_whatsapp_setup_email(to: str, name: str) -> bool:
+    """Send an email instructing the user to join the WhatsApp sandbox."""
+    # Ensure we use settings correctly; if TWILIO_PHONE is something like "whatsapp:+1415..." we extract the number
+    from app.core.config import settings
+    twilio_number = settings.TWILIO_PHONE.replace("whatsapp:", "") if settings.TWILIO_PHONE else "+14155238886"
+    join_code = settings.TWILIO_JOIN_CODE or "store-creature"
+    
+    content = f"""
+    <p>Hello <strong>{name}</strong>,</p>
+    <p>We use WhatsApp to send you instant notifications about your leave requests and approvals.</p>
+    
+    <div class="cred-box" style="border-color: #22c55e;">
+      <p style="margin: 0 0 10px 0; color: #e2e8f0;">To start receiving notifications, please send the following message:</p>
+      <div style="background: #1e293b; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+        <span style="font-family: monospace; font-size: 16px; color: #4ade80;">join {join_code}</span>
+      </div>
+      <p style="margin: 0; color: #e2e8f0;">to our WhatsApp number: <strong><a href="https://wa.me/{twilio_number.replace('+', '')}?text=join%20{join_code}" style="color: #4ade80; text-decoration: none;">{twilio_number}</a></strong></p>
+    </div>
+    
+    <p>Once you send this message, you'll be subscribed to receive real-time updates for your leave applications directly on WhatsApp!</p>
+    """
+    subject = "EmPay — Set Up Your WhatsApp Notifications"
+    return send_email(to, subject, _base_template(content))
+
+
+def send_leave_status_email(to: str, name: str, leave_type: str, start_date: str, status_str: str, remarks: str = None) -> bool:
+    """Send an email notifying the employee of their leave status update."""
+    color = "#4ade80" if "APPROVED" in status_str else "#ef4444"
+    remarks_html = f'<p style="margin-top: 15px;"><strong>Remarks:</strong> {remarks}</p>' if remarks else ""
+    
+    content = f"""
+    <p>Hello <strong>{name}</strong>,</p>
+    <p>There is an update on your leave application.</p>
+    
+    <div class="cred-box" style="border-color: {color};">
+      <div class="cred-row">
+        <span class="cred-label">Leave Type</span>
+        <span class="cred-value" style="color: #e2e8f0; font-family: inherit;">{leave_type}</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Start Date</span>
+        <span class="cred-value" style="color: #e2e8f0; font-family: inherit;">{start_date}</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Status</span>
+        <span class="cred-value" style="color: {color}; font-family: inherit;">{status_str}</span>
+      </div>
+      {remarks_html}
+    </div>
+    
+    <p>You can check the full details by logging into your EmPay portal.</p>
+    """
+    subject = f"EmPay — Leave Request Update: {status_str}"
+    return send_email(to, subject, _base_template(content))
+
+
+def send_payslip_email(to: str, name: str, month_str: str, year: int, net_pay: str, pdf_bytes: bytes, filename: str) -> bool:
+    """Send an email to the employee with their payslip PDF attached."""
+    content = f"""
+    <p>Hello <strong>{name}</strong>,</p>
+    <p>Your payslip for <strong>{month_str} {year}</strong> has been generated and is attached to this email.</p>
+    
+    <div class="cred-box" style="border-color: #6366f1;">
+      <div class="cred-row">
+        <span class="cred-label">Month</span>
+        <span class="cred-value" style="color: #e2e8f0; font-family: inherit;">{month_str} {year}</span>
+      </div>
+      <div class="cred-row">
+        <span class="cred-label">Net Pay</span>
+        <span class="cred-value" style="color: #4ade80;">{net_pay}</span>
+      </div>
+    </div>
+    
+    <p>You can also view and download your payslips by logging into your EmPay portal.</p>
+    """
+    subject = f"EmPay — Payslip for {month_str} {year}"
+    return send_email(to, subject, _base_template(content), attachments=[(filename, pdf_bytes)])
+
 def send_leave_application_email(to: str, name: str, leave_type: str, from_date: str, to_date: str, days: float) -> bool:
     """Send an email to the employee confirming their leave application."""
     content = f"""
@@ -228,4 +316,5 @@ def send_leave_status_update_email(to: str, name: str, leave_type: str, from_dat
     """
     subject = f"Leave Application Update: {status_display}"
     return send_email(to, subject, _base_template(content))
+
 

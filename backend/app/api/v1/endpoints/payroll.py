@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.user import User
@@ -14,8 +14,16 @@ from app.services.audit_service import log_action
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
 
 
+def background_notify(payrun_id: int):
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        payroll_service.notify_employees_of_payrun(db, payrun_id)
+    finally:
+        db.close()
+
 @router.post("/run", response_model=ResponseModel, status_code=201)
-def run_payroll(p: PayrunCreate, db: Session = Depends(get_db),
+def run_payroll(p: PayrunCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db),
                 cu: User = Depends(require_payroll)):
     try:
         payrun = payroll_service.generate_payrun(db, p.month, p.year, cu.id,
@@ -25,6 +33,10 @@ def run_payroll(p: PayrunCreate, db: Session = Depends(get_db),
     log_action(db, cu.id, "generate_payrun", "Payrun", payrun.id,
                f"Payrun {p.month:02d}/{p.year} — {payrun.employee_count} employees",
                company_id=cu.company_id)
+               
+    # Trigger payslip emails and WhatsApp messages in the background
+    background_tasks.add_task(background_notify, payrun.id)
+    
     return ResponseModel(data=PayrunOut.model_validate(payrun))
 
 

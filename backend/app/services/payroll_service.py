@@ -272,3 +272,53 @@ def amend_payslip(db: Session, payrun_id: int, leave_application_id: int,
     db.commit()
     db.refresh(new_ps)
     return new_ps
+
+
+def notify_employees_of_payrun(db: Session, payrun_id: int):
+    import logging
+    from app.services.pdf_service import generate_payslip_pdf, MONTHS
+    from app.services.whatsapp_service import send_whatsapp_message
+    from app.services.email_service import send_payslip_email
+
+    logger = logging.getLogger(__name__)
+    payrun = db.query(Payrun).filter(Payrun.id == payrun_id).first()
+    if not payrun:
+        return
+
+    payslips = db.query(Payslip).filter(Payslip.payrun_id == payrun_id).all()
+    for ps in payslips:
+        emp = db.query(Employee).filter(Employee.id == ps.employee_id).first()
+        if not emp:
+            continue
+        
+        month_str = MONTHS[payrun.month] if 1 <= payrun.month <= 12 else str(payrun.month)
+        net_pay_str = f"Rs. {float(ps.net_pay):,.2f}"
+
+        # Send WhatsApp
+        if emp.phone:
+            wa_msg = (
+                f"🎉 *Payslip Generated*\n\n"
+                f"Hello {emp.first_name},\n"
+                f"Your payslip for *{month_str} {payrun.year}* has been generated.\n\n"
+                f"*Details:*\n"
+                f"• Net Pay: {net_pay_str}\n\n"
+                f"Please check your email for the detailed PDF or log into the EmPay portal."
+            )
+            send_whatsapp_message(emp.phone, wa_msg)
+
+        # Send Email
+        if emp.user and emp.user.email:
+            try:
+                pdf_bytes = generate_payslip_pdf(db, ps.id)
+                filename = f"Payslip_{emp.first_name}_{month_str}_{payrun.year}.pdf"
+                send_payslip_email(
+                    to=emp.user.email,
+                    name=f"{emp.first_name} {emp.last_name}",
+                    month_str=month_str,
+                    year=payrun.year,
+                    net_pay=net_pay_str,
+                    pdf_bytes=pdf_bytes,
+                    filename=filename
+                )
+            except Exception as exc:
+                logger.error(f"[PAYSLIP EMAIL FAILED] Could not send to {emp.user.email}: {exc}")
