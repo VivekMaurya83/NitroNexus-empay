@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, AlertTriangle, Info, X, Send, UserPlus } from 'lucide-react';
 import { getSystemAlerts, dismissAlert } from '../../services/analyticsService';
+import { sendEmployeeNudge } from '../../services/employeeService';
 
 const ICONS   = { no_bank_details:'⚠️', no_manager:'👤' };
 const COLORS  = { warning:'#f59e0b', info:'#3b82f6' };
@@ -22,7 +23,17 @@ export default function AdminAlerts({ embedded = false }) {
     setAlerts(a => a.filter(x => x.id !== id));
   };
 
-  const nudge = (id) => setNudged(n => ({ ...n, [id]: true }));
+  const nudge = async (id, type) => {
+    setNudged(n => ({ ...n, [id]: 'loading' }));
+    try {
+      // id format: "bank_123" -> employeeId = 123
+      const empId = parseInt(id.split('_')[1]);
+      await sendEmployeeNudge(empId, type);
+      setNudged(n => ({ ...n, [id]: 'sent' }));
+    } catch (e) {
+      setNudged(n => ({ ...n, [id]: null }));
+    }
+  };
 
   const visible = filter === 'All' ? alerts : alerts.filter(a => a.type === filter);
 
@@ -87,8 +98,8 @@ export default function AdminAlerts({ embedded = false }) {
             </div>
             <div style={{ display:'flex', gap:'var(--space-2)', flexShrink:0, flexWrap:'wrap' }}>
               {alert.type === 'no_bank_details' && (
-                <motion.button className="btn btn-sm btn-warning" whileHover={{ scale:1.04 }} onClick={() => nudge(alert.id)} disabled={nudged[alert.id]}>
-                  <Send size={12} /> {nudged[alert.id] ? 'Reminder Sent' : 'Send Nudge'}
+                <motion.button className="btn btn-sm btn-warning" whileHover={{ scale:1.04 }} onClick={() => nudge(alert.id, alert.type)} disabled={nudged[alert.id]}>
+                  <Send size={12} /> {nudged[alert.id] === 'sent' ? 'Reminder Sent' : nudged[alert.id] === 'loading' ? 'Sending...' : 'Send Nudge'}
                 </motion.button>
               )}
               {alert.type === 'no_manager' && (

@@ -105,6 +105,7 @@ export default function App() {
 
           {/* Add Employee — Admin + HR + Payroll */}
           <Route path="/hr/add-employee"     element={<RoleRoute element={<AddEmployee />}    allowed={AHP} />} />
+          <Route path="/hr/edit-employee/:id"element={<RoleRoute element={<AddEmployee />}    allowed={AHP} />} />
 
           {/* Admin + Payroll */}
           <Route path="/payroll"                  element={<RoleRoute element={<PayrollManagement />} allowed={AP}  />} />

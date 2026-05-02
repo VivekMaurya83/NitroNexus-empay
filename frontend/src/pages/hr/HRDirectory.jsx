@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search, UserPlus, Eye, Edit, Trash2, Phone, RefreshCw, Building2, X } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth, ROLES } from '../../context/AuthContext';
-import { getEmployees, getDepartments } from '../../services/employeeService';
+import { getEmployees, getDepartments, deleteEmployee } from '../../services/employeeService';
 import { inviteHR } from '../../services/adminService';
 import { AnimatePresence } from 'motion/react';
 
 const STATUS_FILTERS = ['All', 'active', 'inactive', 'terminated'];
 
 export default function HRDirectory() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === ROLES.ADMIN;
   const isHR    = user?.role === ROLES.HR;
@@ -61,6 +62,16 @@ export default function HRDirectory() {
   }, [search, statusF, deptF]);
 
   useEffect(() => { load(); }, [load]);
+  
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this employee? This action cannot be undone.")) return;
+    try {
+      await deleteEmployee(id);
+      setEmps(emps => emps.filter(e => e.id !== id));
+    } catch (err) {
+      alert("Failed to delete employee: " + err.message);
+    }
+  };
 
   // Map dept id → name for fast lookup
   const deptMap = Object.fromEntries((depts || []).map(d => [d.id, d.name]));
@@ -232,8 +243,16 @@ export default function HRDirectory() {
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button className="btn btn-icon btn-ghost" title="View"><Eye size={14} /></button>
-                        {(isAdmin || isHR) && <button className="btn btn-icon btn-ghost" title="Edit"><Edit size={14} /></button>}
-                        {isAdmin && <button className="btn btn-icon btn-ghost" style={{ color: 'var(--error)' }} title="Remove"><Trash2 size={14} /></button>}
+                        {(isAdmin || isHR) && (
+                          <button className="btn btn-icon btn-ghost" title="Edit" onClick={() => navigate(`/hr/edit-employee/${emp.id}`)}>
+                            <Edit size={14} />
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button className="btn btn-icon btn-ghost" style={{ color: 'var(--error)' }} title="Remove" onClick={() => handleDelete(emp.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </motion.tr>

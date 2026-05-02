@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useNavigate, Link } from 'react-router-dom';
-import { UserPlus, ChevronLeft, Check, Mail, User, Building2, Calendar, Briefcase } from 'lucide-react';
-import { getDepartments } from '../../services/employeeService';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { UserPlus, ChevronLeft, Check, Mail, User, Building2, Calendar, Briefcase, Save } from 'lucide-react';
+import { getDepartments, getEmployee, updateEmployee } from '../../services/employeeService';
 import { inviteEmployee } from '../../services/adminService';
 
 const EMPLOYMENT_TYPES = [
@@ -14,6 +14,9 @@ const EMPLOYMENT_TYPES = [
 
 export default function AddEmployee() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = Boolean(id);
+  
   const [depts, setDepts] = useState([]);
   const [form, setForm] = useState({
     first_name: '',
@@ -31,7 +34,21 @@ export default function AddEmployee() {
 
   useEffect(() => {
     getDepartments().then(data => setDepts(data || [])).catch(() => {});
-  }, []);
+    if (isEdit) {
+      getEmployee(id).then(emp => {
+        setForm({
+          first_name: emp.firstName || '',
+          last_name: emp.lastName || '',
+          email: emp.email || '',
+          date_of_joining: emp.joined || '',
+          date_of_birth: emp.dateOfBirth || '',
+          department_id: emp.departmentId || '',
+          employment_type: emp.employmentType || 'full_time',
+          phone: emp.phone || '',
+        });
+      }).catch(err => setError('Failed to load employee details'));
+    }
+  }, [id, isEdit]);
 
   const handle = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -46,10 +63,16 @@ export default function AddEmployee() {
         date_of_birth: form.date_of_birth || null,
         phone: form.phone || null,
       };
-      const result = await inviteEmployee(payload);
-      setSuccess({ login_id: result?.login_id || result?.data?.login_id, email: form.email });
+      
+      if (isEdit) {
+        await updateEmployee(id, payload);
+        navigate('/hr-directory');
+      } else {
+        const result = await inviteEmployee(payload);
+        setSuccess({ login_id: result?.login_id || result?.data?.login_id, email: form.email });
+      }
     } catch (err) {
-      setError(err.message || 'Failed to create employee. Please try again.');
+      setError(err.message || `Failed to ${isEdit ? 'update' : 'create'} employee. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -99,9 +122,9 @@ export default function AddEmployee() {
           <ChevronLeft size={16} /> Back
         </button>
         <div>
-          <h1 className="page-title" style={{ marginBottom: 0 }}>Add New Employee</h1>
+          <h1 className="page-title" style={{ marginBottom: 0 }}>{isEdit ? 'Edit Employee' : 'Add New Employee'}</h1>
           <p className="page-subtitle" style={{ marginBottom: 0 }}>
-            A Login ID will be auto-generated and credentials emailed to the employee
+            {isEdit ? 'Update employee details' : 'A Login ID will be auto-generated and credentials emailed to the employee'}
           </p>
         </div>
       </div>
@@ -132,7 +155,9 @@ export default function AddEmployee() {
                 <Mail size={15} className="input-icon" />
                 <input name="email" type="email" value={form.email} onChange={handle} className="form-input with-icon" placeholder="john.doe@company.com" required />
               </div>
-              <div className="form-hint" style={{ marginTop: 4 }}>Login credentials will be sent to this email</div>
+              <div className="form-hint" style={{ marginTop: 4 }}>
+                {isEdit ? 'Cannot change email for existing employee directly' : 'Login credentials will be sent to this email'}
+              </div>
             </div>
 
             <div className="form-group">
@@ -183,7 +208,7 @@ export default function AddEmployee() {
             </div>
 
             {/* Login ID preview */}
-            {form.first_name && form.last_name && form.date_of_joining && (
+            {!isEdit && form.first_name && form.last_name && form.date_of_joining && (
               <div style={{ background: 'rgba(99,102,241,.08)', border: '1px solid rgba(99,102,241,.2)', borderRadius: 10, padding: '12px 16px' }}>
                 <div style={{ fontSize: 11, color: '#a5b4fc', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Login ID Preview</div>
                 <div style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 700, color: '#a5b4fc', letterSpacing: 1 }}>
@@ -208,7 +233,8 @@ export default function AddEmployee() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
           <button type="button" className="btn btn-secondary" onClick={() => navigate('/hr-directory')}>Cancel</button>
           <motion.button type="submit" className="btn btn-primary" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={loading}>
-            <UserPlus size={16} /> {loading ? 'Creating…' : 'Create Employee & Send Email'}
+            {isEdit ? <Save size={16} /> : <UserPlus size={16} />}
+            {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Employee & Send Email'}
           </motion.button>
         </div>
       </motion.form>

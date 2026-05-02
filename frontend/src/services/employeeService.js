@@ -87,8 +87,12 @@ export async function updateEmployee(id, payload) {
   return adaptEmployee(data);
 }
 
-export async function terminateEmployee(id) {
+export async function deleteEmployee(id) {
   return api.delete(`/employees/${id}`);
+}
+
+export async function sendEmployeeNudge(id, type) {
+  return api.post(`/employees/${id}/nudge`, { type });
 }
 
 // ── Departments & Designations ────────────────────────────────────────────────
