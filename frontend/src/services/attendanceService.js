@@ -111,6 +111,7 @@ export async function getTodayStatusBoard(allEmployees = null) {
       status:      r.status,
       checkIn:     fmtTime(r.check_in),
       checkOut:    fmtTime(r.check_out),
+      hours:       r.working_hours ? `${r.working_hours.toFixed(1)}h` : '—',
       daysPresent: null, // summary loaded separately per employee
     };
   });
