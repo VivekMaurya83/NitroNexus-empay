@@ -34,3 +34,12 @@ export async function getPayrollConfig() {
 export async function savePayrollConfig(rules) {
   return api.post('/payroll/config', rules);
 }
+
+// ── User Management ───────────────────────────────────────────────────────────
+export async function getCompanyUsers() {
+  return api.get('/companies/me/users');
+}
+
+export async function deactivateUser(userId) {
+  return api.delete(`/auth/users/${userId}/deactivate`);
+}

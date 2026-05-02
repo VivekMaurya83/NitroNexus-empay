@@ -13,9 +13,7 @@ import Register    from './pages/auth/Register';
 
 // Admin
 import AdminDashboard      from './pages/admin/AdminDashboard';
-import AdminSettings       from './pages/admin/AdminSettings';
-import AdminConfigurations from './pages/admin/AdminConfigurations';
-import PayrollRules        from './pages/admin/PayrollRules';
+import CompanyUsers       from './pages/admin/CompanyUsers';
 import AdminSetup          from './pages/admin/AdminSetup';
 
 // HR
@@ -31,7 +29,6 @@ import UserProfile       from './pages/employee/UserProfile';
 
 // Payroll
 import PayrollManagement from './pages/payroll/PayrollManagement';
-import SalaryStructure   from './pages/payroll/SalaryStructure';
 import DetailedPayslip   from './pages/payroll/DetailedPayslip';
 
 // Shared
@@ -95,9 +92,7 @@ export default function App() {
 
           {/* Admin only */}
           <Route path="/dashboard"            element={<RoleRoute element={<AdminDashboard />}      allowed={A}   />} />
-          <Route path="/admin/configurations" element={<RoleRoute element={<AdminConfigurations />} allowed={A}   />} />
-          <Route path="/admin/settings"       element={<RoleRoute element={<AdminSettings />}       allowed={A}   />} />
-          <Route path="/admin/payroll-rules"  element={<RoleRoute element={<PayrollRules />}        allowed={A}   />} />
+          <Route path="/admin/settings"       element={<RoleRoute element={<CompanyUsers />}       allowed={A}   />} />
 
           {/* Admin + HR */}
           <Route path="/hr-directory"        element={<RoleRoute element={<HRDirectory />}    allowed={AH}  />} />
@@ -108,7 +103,6 @@ export default function App() {
 
           {/* Admin + Payroll */}
           <Route path="/payroll"                  element={<RoleRoute element={<PayrollManagement />} allowed={AP}  />} />
-          <Route path="/payroll/salary-structure" element={<RoleRoute element={<SalaryStructure />}   allowed={AP}  />} />
 
           {/* All staff */}
           <Route path="/leave"   element={<RoleRoute element={<LeaveManagement />} allowed={ALL} />} />

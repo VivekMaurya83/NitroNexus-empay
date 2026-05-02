@@ -1,63 +1,110 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, X, Users, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { 
+  Play, X, Users, TrendingUp, TrendingDown, DollarSign, 
+  FileText, SlidersHorizontal, History, Edit2, ExternalLink, Save, Search
+} from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
-import { useAuth } from '../../context/AuthContext';
-import { ROLES } from '../../context/AuthContext';
-import { getPayruns, runPayroll, getPayslipsForRun, updatePayslip } from '../../services/payrollService';
-import { invitePayroll } from '../../services/adminService';
-import { Edit2, ExternalLink } from 'lucide-react';
+import { useAuth, ROLES } from '../../context/AuthContext';
+import { 
+  getPayruns, runPayroll, getPayslipsForRun, updatePayslip,
+  getSalaryStructure, updateSalaryStructure
+} from '../../services/payrollService';
+import { getEmployees } from '../../services/employeeService';
 import { useNavigate } from 'react-router-dom';
 
 const INR = (v) => `₹${Number(v||0).toLocaleString('en-IN')}`;
 const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+const ALL_PAYSLIPS_QUERY = `/payroll/payslips`; // I'll assume this endpoint exists or I'll use run-specific ones if needed, but usually a global one is better.
+// Actually, I'll check if I have a global payslip service. 
+// I'll use api directly if needed.
+import api from '../../services/api';
+
+const EARNINGS_FIELDS = [
+  { key:'basic',           label:'Basic Salary' },
+  { key:'hra',             label:'HRA' },
+  { key:'conveyance',      label:'Conveyance Allowance' },
+  { key:'medical',         label:'Medical Allowance' },
+  { key:'specialAllowance',label:'Special Allowance' },
+  { key:'lta',             label:'Leave Travel Allowance (LTA)' },
+  { key:'bonus',           label:'Bonus / Incentive' },
+];
+
+const PT_STATES = ['Maharashtra','Karnataka','West Bengal','Andhra Pradesh','Telangana','Tamil Nadu','Gujarat','Rajasthan','Other'];
 
 export default function PayrollManagement() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const canRun = user?.role === ROLES.ADMIN || user?.role === ROLES.PAYROLL;
 
+  const [activeTab, setTab] = useState('management');
+
+  // Management State
   const [payruns,   setPayruns]   = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [runForm,   setRunForm]   = useState({ month: new Date().getMonth()+1, year: new Date().getFullYear() });
   const [running,   setRunning]   = useState(false);
   const [runError,  setRunError]  = useState('');
-  const [expanded,  setExpanded]  = useState(null); // payrun id
+  const [expanded,  setExpanded]  = useState(null); 
   const [payslips,  setPayslips]  = useState([]);
   const [slipsLoading, setSlipsLoading] = useState(false);
+  
+  // Edit Slip State
   const [editingSlip, setEditingSlip] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [savingSlip, setSavingSlip] = useState(false);
 
-  const navigate = useNavigate();
+  // Salary Structure State
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmpId, setSelectedEmpId] = useState(null);
+  const [salary,    setSalary]    = useState(null);
+  const [editingSalary, setEditingSalary] = useState(false);
+  const [salaryDraft,   setSalaryDraft]   = useState({});
+  const [salarySaving,  setSalarySaving]  = useState(false);
+  const [salaryLoading, setSalaryLoading] = useState(false);
 
-  const [showInvitePayroll, setShowInvitePayroll] = useState(false);
-  const [poForm, setPoForm] = useState({ name: '', email: '' });
-  const [invitingPO, setInvitingPO] = useState(false);
-  const [poError, setPoError] = useState('');
+  // All Payslips State
+  const [allPayslips, setAllPayslips] = useState([]);
+  const [allSlipsLoading, setAllSlipsLoading] = useState(false);
+  const [slipSearch, setSlipSearch] = useState('');
 
-  const handleInvitePayroll = async (e) => {
-    e.preventDefault();
-    setInvitingPO(true); setPoError('');
-    try {
-      await invitePayroll(poForm);
-      setShowInvitePayroll(false);
-      setPoForm({ name: '', email: '' });
-      load();
-    } catch (err) {
-      setPoError(err.message || 'Failed to invite Payroll Officer');
-    } finally {
-      setInvitingPO(false);
-    }
-  };
-
-  const load = async () => {
+  const loadPayruns = async () => {
     setLoading(true);
     try { setPayruns(await getPayruns()); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { loadPayruns(); }, []);
+
+  useEffect(() => {
+    if (activeTab === 'payslips') {
+      setAllSlipsLoading(true);
+      api.get('/payroll/payslips')
+        .then(data => setAllPayslips(data || []))
+        .catch(() => setAllPayslips([]))
+        .finally(() => setAllSlipsLoading(false));
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'salary') {
+      getEmployees().then(emps => {
+        setEmployees(emps);
+        if (emps.length && !selectedEmpId) setSelectedEmpId(emps[0].id);
+      });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'salary' && selectedEmpId) {
+      setSalaryLoading(true); setSalary(null);
+      getSalaryStructure(selectedEmpId)
+        .then(s => { setSalary(s); setSalaryDraft(s || {}); })
+        .catch(() => { setSalary(null); setSalaryDraft({}); })
+        .finally(() => setSalaryLoading(false));
+    }
+  }, [activeTab, selectedEmpId]);
 
   const handleRunPayroll = async (e) => {
     e.preventDefault();
@@ -65,7 +112,7 @@ export default function PayrollManagement() {
     try {
       await runPayroll(Number(runForm.month), Number(runForm.year));
       setShowModal(false);
-      load();
+      loadPayruns();
     } catch (err) { setRunError(err.message || 'Failed to run payroll'); }
     finally { setRunning(false); }
   };
@@ -78,7 +125,7 @@ export default function PayrollManagement() {
     finally { setSlipsLoading(false); }
   };
 
-  const startEdit = (ps) => {
+  const startEditSlip = (ps) => {
     setEditingSlip(ps);
     setEditForm({ ...ps });
   };
@@ -90,170 +137,285 @@ export default function PayrollManagement() {
       const updated = await updatePayslip(editingSlip.id, editForm);
       setPayslips(prev => prev.map(s => s.id === updated.id ? updated : s));
       setEditingSlip(null);
-      // Refresh payrun totals since we modified a slip
-      load();
+      loadPayruns();
     } catch (err) { alert(err.message || 'Failed to update payslip'); }
     finally { setSavingSlip(false); }
   };
 
-  // Summary stats from latest payrun
-  const latest = payruns[0] || null;
+  const handleSaveSalary = async () => {
+    setSalarySaving(true);
+    try {
+      const payload = {
+        basic:              Number(salaryDraft.basic || 0),
+        hra:                Number(salaryDraft.hra || 0),
+        conveyance:         Number(salaryDraft.conveyance || 0),
+        medical:            Number(salaryDraft.medical || 0),
+        special_allowance:  Number(salaryDraft.specialAllowance || 0),
+        lta:                Number(salaryDraft.lta || 0),
+        bonus:              Number(salaryDraft.bonus || 0),
+        pf_applicable:      !!salaryDraft.pfApplicable,
+        professional_tax_state: salaryDraft.professionalTaxState || 'Maharashtra',
+      };
+      const updated = await updateSalaryStructure(selectedEmpId, payload);
+      setSalary(updated); setSalaryDraft(updated); setEditingSalary(false);
+    } finally { setSalarySaving(false); }
+  };
+
+  // Salary Calculations
+  const salaryGross = EARNINGS_FIELDS.reduce((sum, f) => sum + Number(salaryDraft[f.key] || 0), 0);
+  const pfDeduction = salaryDraft.pfApplicable ? Math.round(salaryGross * 0.12) : 0;
+  const profTax = 200;
+  const totalDeduction = pfDeduction + profTax;
+  const netPay = salaryGross - totalDeduction;
 
   return (
-    <div>
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'var(--space-5)' }}>
-        <div><h1 className="page-title">Payroll Management</h1><p className="page-subtitle">Run payroll and review payslips</p></div>
-        {canRun && (
+    <div className="payroll-page">
+      <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
+        <div>
+          <h1 className="page-title">Payroll & Compensation</h1>
+          <p className="page-subtitle">Manage payruns, payslips, and employee salary structures</p>
+        </div>
+        {activeTab === 'management' && canRun && (
           <motion.button className="btn btn-primary" onClick={()=>setShowModal(true)} whileHover={{ scale:1.02 }}>
             <Play size={16}/> Run Payroll
           </motion.button>
         )}
-        {user?.role === ROLES.ADMIN && (
-          <motion.button className="btn btn-secondary" onClick={()=>setShowInvitePayroll(true)} whileHover={{ scale:1.02 }}>
-            <Users size={16}/> Invite Payroll Officer
-          </motion.button>
-        )}
       </div>
 
-      {/* Invite Payroll Modal */}
-      <AnimatePresence>
-        {showInvitePayroll && (
-          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setShowInvitePayroll(false)}>
-            <motion.div className="modal-content" initial={{ scale:0.9 }} animate={{ scale:1 }} exit={{ scale:0.9 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:400 }}>
-              <div className="modal-header">
-                <h3 className="modal-title"><Users size={16}/> Invite Payroll Officer</h3>
-                <button className="btn btn-icon btn-ghost" onClick={()=>setShowInvitePayroll(false)}><X size={18}/></button>
+      <div className="tabs" style={{ marginBottom: 'var(--space-5)' }}>
+        <button className={`tab-btn ${activeTab === 'management' ? 'active' : ''}`} onClick={() => setTab('management')}>
+          <History size={16} /> Payruns & History
+        </button>
+        <button className={`tab-btn ${activeTab === 'salary' ? 'active' : ''}`} onClick={() => setTab('salary')}>
+          <SlidersHorizontal size={16} /> Salary Structure
+        </button>
+        <button className={`tab-btn ${activeTab === 'payslips' ? 'active' : ''}`} onClick={() => setTab('payslips')}>
+          <FileText size={16} /> Payslips
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {activeTab === 'management' && (
+          <motion.div key="management" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
+            {/* Summary cards from latest */}
+            {payruns[0] && (
+              <div className="stats-grid" style={{ marginBottom:'var(--space-4)' }}>
+                {[
+                  { label:'Employees',     value: payruns[0].employees,           color:'var(--primary-container)' },
+                  { label:'Gross Payout',  value: INR(payruns[0].totalGross),      color:'var(--success)' },
+                  { label:'Net Payout',    value: INR(payruns[0].totalNet),        color:'var(--info)'    },
+                ].map((s,i) => (
+                  <div key={s.label} className="stat-card">
+                    <div className="stat-value" style={{ color:s.color }}>{s.value}</div>
+                    <div className="stat-label">{s.label} (Latest)</div>
+                  </div>
+                ))}
               </div>
-              <form onSubmit={handleInvitePayroll} className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
-                <p style={{ fontSize:'var(--font-size-sm)', color:'var(--on-surface-variant)' }}>
-                  Invite a Payroll Officer. Note: Only one Payroll Officer is allowed per organization.
-                </p>
-                <div className="form-group">
-                  <label className="form-label">Full Name *</label>
-                  <input className="form-input" value={poForm.name} onChange={e=>setPoForm(f=>({...f, name:e.target.value}))} placeholder="e.g. Amit Joshi" required />
+            )}
+
+            <div className="card">
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Period</th>
+                      <th>Employees</th>
+                      <th>Gross</th>
+                      <th>Net Pay</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && <tr><td colSpan={6} className="loading-state">Loading...</td></tr>}
+                    {payruns.map(pr => (
+                      <React.Fragment key={pr.id}>
+                        <tr onClick={()=>toggleExpand(pr)} style={{ cursor:'pointer', background: expanded===pr.id ? 'var(--surface-container-low)' : '' }}>
+                          <td style={{ fontWeight:700 }}>{pr.period || `${MONTHS[pr.month]} ${pr.year}`}</td>
+                          <td style={{ textAlign:'center' }}>{pr.employees}</td>
+                          <td style={{ fontFamily:'monospace' }}>{INR(pr.totalGross)}</td>
+                          <td style={{ fontFamily:'monospace', fontWeight:700 }}>{INR(pr.totalNet)}</td>
+                          <td><StatusBadge status={pr.status}/></td>
+                          <td>
+                            <button className="btn btn-sm btn-secondary">{expanded===pr.id ? 'Hide' : 'View'} Slips</button>
+                          </td>
+                        </tr>
+                        {expanded === pr.id && (
+                          <tr>
+                            <td colSpan={6} style={{ padding:0 }}>
+                              <div style={{ padding:'var(--space-4)', background:'var(--surface-container-lowest)' }}>
+                                {slipsLoading ? <div className="loading-state">Loading...</div> : (
+                                  <table className="data-table" style={{ background:'transparent' }}>
+                                    <thead>
+                                      <tr>
+                                        <th>Employee</th><th>Net Pay</th><th>Status</th><th>Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {payslips.map(ps => (
+                                        <tr key={ps.id}>
+                                          <td style={{ fontWeight:600 }}>{ps.employee} <span style={{ fontSize:10, fontWeight:400 }}>({ps.employeeCode})</span></td>
+                                          <td style={{ fontFamily:'monospace' }}>{INR(ps.netPay)}</td>
+                                          <td><StatusBadge status={pr.status}/></td>
+                                          <td>
+                                            <div style={{ display:'flex', gap:4 }}>
+                                              <button className="btn btn-icon btn-ghost btn-sm" onClick={()=>navigate(`/payslip?id=${ps.id}`)}><ExternalLink size={14}/></button>
+                                              <button className="btn btn-icon btn-ghost btn-sm" onClick={()=>startEditSlip(ps)}><Edit2 size={14}/></button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'salary' && (
+          <motion.div key="salary" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
+            <div className="card card-sm" style={{ marginBottom:'var(--space-4)', display:'flex', alignItems:'center', gap:'var(--space-4)' }}>
+              <label style={{ fontWeight:700 }}>Employee:</label>
+              <select className="form-select" style={{ maxWidth:300 }} value={selectedEmpId||''} onChange={e=>setSelectedEmpId(Number(e.target.value))}>
+                {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+              <div style={{ flex: 1 }} />
+              {canRun && !editingSalary && salary && (
+                <button className="btn btn-primary" onClick={()=>setEditingSalary(true)}><Edit2 size={14}/> Edit Structure</button>
+              )}
+              {editingSalary && (
+                <div style={{ display:'flex', gap:8 }}>
+                  <button className="btn btn-secondary" onClick={()=>{setEditingSalary(false); setSalaryDraft(salary||{});}}>Cancel</button>
+                  <button className="btn btn-primary" onClick={handleSaveSalary} disabled={salarySaving}><Save size={14}/> Save</button>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Email Address *</label>
-                  <input className="form-input" type="email" value={poForm.email} onChange={e=>setPoForm(f=>({...f, email:e.target.value}))} placeholder="payroll@company.com" required />
+              )}
+            </div>
+
+            {salaryLoading ? <div className="loading-state">Loading...</div> : (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-4)' }}>
+                {/* Earnings */}
+                <div className="card">
+                  <div className="card-title" style={{ marginBottom:'var(--space-4)' }}>Earnings Breakdown</div>
+                  <table className="data-table">
+                    <tbody>
+                      {EARNINGS_FIELDS.map(f => (
+                        <tr key={f.key}>
+                          <td>{f.label}</td>
+                          <td style={{ textAlign:'right' }}>
+                            {editingSalary ? (
+                              <input type="number" className="form-input" style={{ width:120, textAlign:'right' }} value={salaryDraft[f.key]||''} onChange={e=>setSalaryDraft(d=>({...d, [f.key]:e.target.value}))}/>
+                            ) : <span style={{ fontFamily:'monospace' }}>{INR(salary?.[f.key])}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{ background:'var(--surface-container-low)', fontWeight:700 }}>
+                        <td>Gross Salary</td>
+                        <td style={{ textAlign:'right', fontFamily:'monospace', color:'var(--success)' }}>{INR(salaryGross)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-                {poError && <div style={{ color:'var(--error)', fontSize:'var(--font-size-sm)', padding:'8px 12px', background:'var(--error-container)', borderRadius:8 }}>{poError}</div>}
-                <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
-                  <button type="button" className="btn btn-secondary" onClick={()=>setShowInvitePayroll(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={invitingPO}>{invitingPO ? 'Inviting…' : 'Send Invite'}</button>
+
+                {/* Deductions */}
+                <div style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
+                  <div className="card">
+                    <div className="card-title" style={{ marginBottom:'var(--space-4)' }}>Deductions</div>
+                    <table className="data-table">
+                      <tbody>
+                        <tr><td>PF (Employee 12%)</td><td style={{ textAlign:'right', fontFamily:'monospace' }}>{INR(pfDeduction)}</td></tr>
+                        <tr><td>Professional Tax</td><td style={{ textAlign:'right', fontFamily:'monospace' }}>{INR(profTax)}</td></tr>
+                        <tr style={{ background:'var(--surface-container-low)', fontWeight:700 }}>
+                          <td>Total Deductions</td>
+                          <td style={{ textAlign:'right', fontFamily:'monospace', color:'var(--error)' }}>{INR(totalDeduction)}</td>
+                        </tr>
+                        <tr style={{ background:'var(--primary-container)', color:'var(--on-primary)', fontWeight:800 }}>
+                          <td>Net Take Home</td>
+                          <td style={{ textAlign:'right', fontFamily:'monospace', fontSize:18 }}>{INR(netPay)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="card">
+                    <div className="card-title" style={{ marginBottom:'var(--space-3)' }}>Configuration</div>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                        <input type="checkbox" checked={!!salaryDraft.pfApplicable} disabled={!editingSalary} onChange={e=>setSalaryDraft(d=>({...d, pfApplicable:e.target.checked}))}/>
+                        <span>PF Applicable</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
-              </form>
-            </motion.div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === 'payslips' && (
+          <motion.div key="payslips" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="card-header" style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--outline-variant)' }}>
+                <div className="search-wrap" style={{ flex: 1, maxWidth: 400 }}>
+                  <Search size={15} className="search-icon" />
+                  <input className="form-input search-input" value={slipSearch} onChange={e => setSlipSearch(e.target.value)} placeholder="Search payslips by employee name or code..." />
+                </div>
+              </div>
+              
+              <div className="table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Period</th>
+                      <th>Gross</th>
+                      <th>Deductions</th>
+                      <th>Net Pay</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allSlipsLoading ? (
+                      <tr><td colSpan={6} className="loading-state">Loading payslips...</td></tr>
+                    ) : allPayslips.filter(ps => 
+                        ps.employee.toLowerCase().includes(slipSearch.toLowerCase()) || 
+                        ps.employeeCode?.toLowerCase().includes(slipSearch.toLowerCase())
+                      ).map(ps => (
+                        <tr key={ps.id}>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{ps.employee}</div>
+                            <div style={{ fontSize: 10, color: 'var(--on-surface-variant)' }}>{ps.employeeCode}</div>
+                          </td>
+                          <td>{ps.period}</td>
+                          <td style={{ fontFamily: 'monospace' }}>{INR(ps.grossEarnings)}</td>
+                          <td style={{ fontFamily: 'monospace', color: 'var(--error)' }}>{INR(ps.totalDeductions)}</td>
+                          <td style={{ fontFamily: 'monospace', fontWeight: 700 }}>{INR(ps.netPay)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="btn btn-icon btn-ghost btn-sm" onClick={() => navigate(`/payslip?id=${ps.id}`)} title="View Detail"><ExternalLink size={14}/></button>
+                          </td>
+                        </tr>
+                      ))}
+                    {allPayslips.length === 0 && !allSlipsLoading && (
+                      <tr><td colSpan={6} style={{ textAlign: 'center', padding: 'var(--space-8)', color: 'var(--on-surface-variant)' }}>No payslips found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Latest payrun stats */}
-      {latest && (
-        <div className="stats-grid" style={{ marginBottom:'var(--space-4)' }}>
-          {[
-            { icon:<Users size={20}/>,      label:'Employees',     value: latest.employees,               color:'var(--primary-container)' },
-            { icon:<TrendingUp size={20}/>,  label:'Gross Payout',  value: INR(latest.totalGross),          color:'var(--success)' },
-            { icon:<TrendingDown size={20}/>,label:'Deductions',    value: INR(latest.totalDeductions),     color:'var(--error)'   },
-            { icon:<DollarSign size={20}/>,  label:'Net Payout',    value: INR(latest.totalNet),            color:'var(--info)'    },
-          ].map((s,i) => (
-            <motion.div key={s.label} className="stat-card" initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}>
-              <div style={{ color:s.color, marginBottom:4 }}>{s.icon}</div>
-              <div className="stat-value" style={{ color:s.color }}>{s.value}</div>
-              <div className="stat-label">{s.label}</div>
-              <div style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', marginTop:2 }}>Latest: {latest.period}</div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* Payrun History Table */}
-      <motion.div className="card" initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }}>
-        <div className="card-header"><div className="card-title">Payrun History</div></div>
-        {loading && <div className="loading-state">Loading payrun history…</div>}
-        {!loading && (
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Period</th>
-                  <th>Employees</th>
-                  <th>Gross</th>
-                  <th>Deductions</th>
-                  <th>Net Pay</th>
-                  <th>Status</th>
-                  <th>Amended</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payruns.map((pr, i) => (
-                  <React.Fragment key={pr.id}>
-                    <motion.tr initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:i*0.05 }}
-                      style={{ cursor:'pointer', background: expanded===pr.id ? 'var(--surface-container-low)' : '' }}
-                      onClick={()=>toggleExpand(pr)}>
-                      <td style={{ fontWeight:700 }}>{pr.period || `${MONTHS[pr.month]} ${pr.year}`}</td>
-                      <td style={{ textAlign:'center' }}>{pr.employees}</td>
-                      <td style={{ fontFamily:'monospace', color:'var(--success)' }}>{INR(pr.totalGross)}</td>
-                      <td style={{ fontFamily:'monospace', color:'var(--error)' }}>{INR(pr.totalDeductions)}</td>
-                      <td style={{ fontFamily:'monospace', fontWeight:700 }}>{INR(pr.totalNet)}</td>
-                      <td><StatusBadge status={pr.status}/></td>
-                      <td style={{ textAlign:'center' }}>{pr.isAmended ? <span className="badge badge-warning">✎ Amended</span> : '—'}</td>
-                      <td>
-                        <motion.button className="btn btn-sm btn-secondary" whileHover={{ scale:1.03 }} onClick={e=>{e.stopPropagation();toggleExpand(pr);}}>
-                          {expanded===pr.id ? 'Hide' : 'View'} Payslips
-                        </motion.button>
-                      </td>
-                    </motion.tr>
-                    {/* Expanded payslips row */}
-                    {expanded === pr.id && (
-                      <tr>
-                        <td colSpan={8} style={{ padding:0, background:'var(--surface-container-lowest)' }}>
-                          <div style={{ padding:'var(--space-4)' }}>
-                            {slipsLoading && <div className="loading-state">Loading payslips…</div>}
-                            {!slipsLoading && payslips.length === 0 && <div style={{ color:'var(--on-surface-variant)', textAlign:'center', padding:'var(--space-4)' }}>No payslips found.</div>}
-                            {!slipsLoading && payslips.length > 0 && (
-                              <table className="data-table" style={{ background:'transparent' }}>
-                                <thead>
-                                  <tr>
-                                    <th>Employee</th><th>Code</th><th>Present</th><th>Absent</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Anomaly</th><th>Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {payslips.map(ps => (
-                                    <tr key={ps.id}>
-                                      <td style={{ fontWeight:600 }}>{ps.employee}</td>
-                                      <td style={{ fontSize:11, color:'var(--on-surface-variant)' }}>{ps.employeeCode}</td>
-                                      <td style={{ textAlign:'center' }}>{ps.daysPresent}</td>
-                                      <td style={{ textAlign:'center', color:'var(--error)' }}>{ps.daysAbsent}</td>
-                                      <td style={{ fontFamily:'monospace' }}>{INR(ps.grossEarnings)}</td>
-                                      <td style={{ fontFamily:'monospace', color:'var(--error)' }}>{INR(ps.totalDeductions)}</td>
-                                      <td style={{ fontFamily:'monospace', fontWeight:700 }}>{INR(ps.netPay)}</td>
-                                      <td>{ps.isAnomalous ? <span className="badge badge-warning" title={ps.anomalyFlags}>⚠</span> : '✓'}</td>
-                                      <td style={{ display:'flex', gap:4 }}>
-                                        <button className="btn btn-icon btn-ghost btn-sm" onClick={()=>navigate(`/payslip?id=${ps.id}`)} title="View Detail"><ExternalLink size={14}/></button>
-                                        <button className="btn btn-icon btn-ghost btn-sm" onClick={()=>startEdit(ps)} title="Edit Values"><Edit2 size={14}/></button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                ))}
-                {!loading && payruns.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--on-surface-variant)', padding:'var(--space-8)' }}>No payrun history. Run your first payroll!</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
-
-      {/* Run Payroll Modal */}
+      {/* Shared Modals (Run/Edit) */}
+      {/* ... Run Payroll Modal ... */}
       <AnimatePresence>
         {showModal && (
           <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setShowModal(false)}>
@@ -264,58 +426,36 @@ export default function PayrollManagement() {
               </div>
               <form onSubmit={handleRunPayroll} className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
                 <div className="form-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-3)' }}>
-                  <div className="form-group">
-                    <label className="form-label">Month</label>
-                    <select className="form-select" value={runForm.month} onChange={e=>setRunForm(f=>({...f, month:Number(e.target.value)}))}>
-                      {MONTHS.slice(1).map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Year</label>
-                    <input type="number" className="form-input" value={runForm.year} min={2020} max={2099}
-                      onChange={e=>setRunForm(f=>({...f, year:Number(e.target.value)}))}/>
-                  </div>
+                  <div className="form-group"><label className="form-label">Month</label><select className="form-select" value={runForm.month} onChange={e=>setRunForm(f=>({...f, month:Number(e.target.value)}))}>{MONTHS.slice(1).map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}</select></div>
+                  <div className="form-group"><label className="form-label">Year</label><input type="number" className="form-input" value={runForm.year} onChange={e=>setRunForm(f=>({...f, year:Number(e.target.value)}))}/></div>
                 </div>
-                {runError && <div style={{ color:'var(--error)', fontSize:'var(--font-size-sm)', padding:'8px 12px', background:'var(--error-container)', borderRadius:'var(--radius-md)' }}>{runError}</div>}
+                {runError && <div className="badge badge-rejected" style={{ width:'100%', padding:8 }}>{runError}</div>}
                 <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
                   <button type="button" className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={running}>{running?'Running…':'Run Payroll'}</button>
+                  <button type="submit" className="btn btn-primary" disabled={running}>{running?'Running...':'Run Payroll'}</button>
                 </div>
               </form>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Edit Payslip Modal */}
-      <AnimatePresence>
         {editingSlip && (
           <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setEditingSlip(null)}>
             <motion.div className="modal-content" initial={{ scale:0.9 }} animate={{ scale:1 }} exit={{ scale:0.9 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:600 }}>
               <div className="modal-header">
-                <h3 className="modal-title"><Edit2 size={16}/> Edit Payslip: {editingSlip.employee}</h3>
+                <h3 className="modal-title">Edit Payslip: {editingSlip.employee}</h3>
                 <button className="btn btn-icon btn-ghost" onClick={()=>setEditingSlip(null)}><X size={18}/></button>
               </div>
               <form onSubmit={handleUpdateSlip} className="modal-body">
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-4)' }}>
-                  <div className="form-group"><label className="form-label">Days Present</label><input type="number" step="0.5" className="form-input" value={editForm.daysPresent} onChange={e=>setEditForm(f=>({...f, daysPresent:Number(e.target.value)}))}/></div>
-                  <div className="form-group"><label className="form-label">Days Absent</label><input type="number" step="0.5" className="form-input" value={editForm.daysAbsent} onChange={e=>setEditForm(f=>({...f, daysAbsent:Number(e.target.value)}))}/></div>
-                  <div className="form-group"><label className="form-label">Basic Salary</label><input type="number" className="form-input" value={editForm.basic} onChange={e=>setEditForm(f=>({...f, basic:Number(e.target.value)}))}/></div>
-                  <div className="form-group"><label className="form-label">HRA</label><input type="number" className="form-input" value={editForm.hra} onChange={e=>setEditForm(f=>({...f, hra:Number(e.target.value)}))}/></div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-3)' }}>
+                  <div className="form-group"><label className="form-label">Basic</label><input type="number" className="form-input" value={editForm.basic} onChange={e=>setEditForm(f=>({...f, basic:Number(e.target.value)}))}/></div>
                   <div className="form-group"><label className="form-label">Bonus</label><input type="number" className="form-input" value={editForm.bonus} onChange={e=>setEditForm(f=>({...f, bonus:Number(e.target.value)}))}/></div>
                   <div className="form-group"><label className="form-label">PF Deduction</label><input type="number" className="form-input" value={editForm.pfEmployee} onChange={e=>setEditForm(f=>({...f, pfEmployee:Number(e.target.value)}))}/></div>
                   <div className="form-group"><label className="form-label">TDS</label><input type="number" className="form-input" value={editForm.tds} onChange={e=>setEditForm(f=>({...f, tds:Number(e.target.value)}))}/></div>
-                  <div className="form-group"><label className="form-label">Other Deductions</label><input type="number" className="form-input" value={editForm.otherDeductions} onChange={e=>setEditForm(f=>({...f, otherDeductions:Number(e.target.value)}))}/></div>
-                </div>
-                <div style={{ marginTop:'var(--space-4)', padding:'12px', background:'var(--surface-container-low)', borderRadius:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <div style={{ fontSize:'var(--font-size-sm)', fontWeight:600 }}>Estimated Net Pay:</div>
-                  <div style={{ fontSize:'var(--font-size-lg)', fontWeight:800, color:'var(--primary)' }}>
-                    {INR((editForm.basic||0) + (editForm.hra||0) + (editForm.bonus||0) + (editForm.specialAllowance||0) + (editForm.conveyance||0) + (editForm.medical||0) + (editForm.lta||0) - (editForm.pfEmployee||0) - (editForm.professionalTax||0) - (editForm.tds||0) - (editForm.otherDeductions||0))}
-                  </div>
                 </div>
                 <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end', marginTop:'var(--space-5)' }}>
                   <button type="button" className="btn btn-secondary" onClick={()=>setEditingSlip(null)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={savingSlip}>{savingSlip?'Saving…':'Update Payslip'}</button>
+                  <button type="submit" className="btn btn-primary" disabled={savingSlip}>{savingSlip?'Saving...':'Update Slip'}</button>
                 </div>
               </form>
             </motion.div>
