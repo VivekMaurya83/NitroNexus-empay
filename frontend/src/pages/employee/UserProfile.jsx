@@ -29,6 +29,11 @@ export default function UserProfile() {
   const [certs,   setCerts]   = useState([...resumeData.certifications]);
   const [saved,   setSaved]   = useState(false);
   const [activeTab, setTab]   = useState('personal');
+  
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ old: '', new: '', confirm: '' });
+  const [pwLoading, setPwLoading] = useState(false);
+  const { changePassword } = useAuth();
 
   const handle = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -40,6 +45,24 @@ export default function UserProfile() {
 
   const addSkill = () => {
     if (newSkill.trim()) { setSkills(s => [...s, newSkill.trim()]); setNewSkill(''); }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (pwForm.new !== pwForm.confirm) return alert('New passwords do not match');
+    if (pwForm.new.length < 8) return alert('Password must be at least 8 characters');
+    
+    setPwLoading(true);
+    try {
+      await changePassword(pwForm.old, pwForm.new);
+      alert('Password changed successfully!');
+      setShowPasswordModal(false);
+      setPwForm({ old: '', new: '', confirm: '' });
+    } catch (err) {
+      alert(err.message || 'Failed to change password');
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   const TABS = [
@@ -80,7 +103,7 @@ export default function UserProfile() {
                 </div>
               ))}
             </div>
-            <button type="button" className="btn btn-secondary" style={{ width:'100%', marginTop:'var(--space-4)' }} onClick={() => alert('Change Password dialog would open here')}>
+            <button type="button" className="btn btn-secondary" style={{ width:'100%', marginTop:'var(--space-4)' }} onClick={() => setShowPasswordModal(true)}>
               Change Password
             </button>
           </motion.div>
@@ -217,6 +240,36 @@ export default function UserProfile() {
           </div>
         </div>
       </form>
+
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="modal-overlay" onClick={()=>setShowPasswordModal(false)}>
+          <motion.div className="modal-content" onClick={e=>e.stopPropagation()} initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }}>
+            <div className="modal-header">
+              <h3 className="modal-title">Change Password</h3>
+              <button type="button" className="btn btn-icon btn-ghost" onClick={()=>setShowPasswordModal(false)}><X size={18}/></button>
+            </div>
+            <form onSubmit={handleChangePassword} className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Current Password</label>
+                <input type="password" required className="form-input" value={pwForm.old} onChange={e=>setPwForm(f=>({...f, old:e.target.value}))}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">New Password</label>
+                <input type="password" required className="form-input" value={pwForm.new} onChange={e=>setPwForm(f=>({...f, new:e.target.value}))}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm New Password</label>
+                <input type="password" required className="form-input" value={pwForm.confirm} onChange={e=>setPwForm(f=>({...f, confirm:e.target.value}))}/>
+              </div>
+              <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end', marginTop:'var(--space-4)' }}>
+                <button type="button" className="btn btn-secondary" onClick={()=>setShowPasswordModal(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={pwLoading}>{pwLoading?'Updating…':'Update Password'}</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

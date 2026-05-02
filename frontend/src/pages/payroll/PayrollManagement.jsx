@@ -4,8 +4,10 @@ import { Play, X, Users, TrendingUp, TrendingDown, DollarSign } from 'lucide-rea
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../context/AuthContext';
-import { getPayruns, runPayroll, getPayslipsForRun } from '../../services/payrollService';
+import { getPayruns, runPayroll, getPayslipsForRun, updatePayslip } from '../../services/payrollService';
 import { invitePayroll } from '../../services/adminService';
+import { Edit2, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const INR = (v) => `₹${Number(v||0).toLocaleString('en-IN')}`;
 const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -23,6 +25,11 @@ export default function PayrollManagement() {
   const [expanded,  setExpanded]  = useState(null); // payrun id
   const [payslips,  setPayslips]  = useState([]);
   const [slipsLoading, setSlipsLoading] = useState(false);
+  const [editingSlip, setEditingSlip] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [savingSlip, setSavingSlip] = useState(false);
+
+  const navigate = useNavigate();
 
   const [showInvitePayroll, setShowInvitePayroll] = useState(false);
   const [poForm, setPoForm] = useState({ name: '', email: '' });
@@ -69,6 +76,24 @@ export default function PayrollManagement() {
     setSlipsLoading(true);
     try { setPayslips(await getPayslipsForRun(payrun.id)); }
     finally { setSlipsLoading(false); }
+  };
+
+  const startEdit = (ps) => {
+    setEditingSlip(ps);
+    setEditForm({ ...ps });
+  };
+
+  const handleUpdateSlip = async (e) => {
+    e.preventDefault();
+    setSavingSlip(true);
+    try {
+      const updated = await updatePayslip(editingSlip.id, editForm);
+      setPayslips(prev => prev.map(s => s.id === updated.id ? updated : s));
+      setEditingSlip(null);
+      // Refresh payrun totals since we modified a slip
+      load();
+    } catch (err) { alert(err.message || 'Failed to update payslip'); }
+    finally { setSavingSlip(false); }
   };
 
   // Summary stats from latest payrun
@@ -190,19 +215,24 @@ export default function PayrollManagement() {
                               <table className="data-table" style={{ background:'transparent' }}>
                                 <thead>
                                   <tr>
-                                    <th>Employee</th><th>Present</th><th>Absent</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Anomaly</th>
+                                    <th>Employee</th><th>Code</th><th>Present</th><th>Absent</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Anomaly</th><th>Actions</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {payslips.map(ps => (
                                     <tr key={ps.id}>
                                       <td style={{ fontWeight:600 }}>{ps.employee}</td>
+                                      <td style={{ fontSize:11, color:'var(--on-surface-variant)' }}>{ps.employeeCode}</td>
                                       <td style={{ textAlign:'center' }}>{ps.daysPresent}</td>
                                       <td style={{ textAlign:'center', color:'var(--error)' }}>{ps.daysAbsent}</td>
                                       <td style={{ fontFamily:'monospace' }}>{INR(ps.grossEarnings)}</td>
                                       <td style={{ fontFamily:'monospace', color:'var(--error)' }}>{INR(ps.totalDeductions)}</td>
                                       <td style={{ fontFamily:'monospace', fontWeight:700 }}>{INR(ps.netPay)}</td>
-                                      <td>{ps.isAnomalous ? <span className="badge badge-warning" title={ps.anomalyFlags}>⚠ {ps.anomalyFlags || 'Flag'}</span> : '✓'}</td>
+                                      <td>{ps.isAnomalous ? <span className="badge badge-warning" title={ps.anomalyFlags}>⚠</span> : '✓'}</td>
+                                      <td style={{ display:'flex', gap:4 }}>
+                                        <button className="btn btn-icon btn-ghost btn-sm" onClick={()=>navigate(`/payslip?id=${ps.id}`)} title="View Detail"><ExternalLink size={14}/></button>
+                                        <button className="btn btn-icon btn-ghost btn-sm" onClick={()=>startEdit(ps)} title="Edit Values"><Edit2 size={14}/></button>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -250,6 +280,42 @@ export default function PayrollManagement() {
                 <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
                   <button type="button" className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button>
                   <button type="submit" className="btn btn-primary" disabled={running}>{running?'Running…':'Run Payroll'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Payslip Modal */}
+      <AnimatePresence>
+        {editingSlip && (
+          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setEditingSlip(null)}>
+            <motion.div className="modal-content" initial={{ scale:0.9 }} animate={{ scale:1 }} exit={{ scale:0.9 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:600 }}>
+              <div className="modal-header">
+                <h3 className="modal-title"><Edit2 size={16}/> Edit Payslip: {editingSlip.employee}</h3>
+                <button className="btn btn-icon btn-ghost" onClick={()=>setEditingSlip(null)}><X size={18}/></button>
+              </div>
+              <form onSubmit={handleUpdateSlip} className="modal-body">
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--space-4)' }}>
+                  <div className="form-group"><label className="form-label">Days Present</label><input type="number" step="0.5" className="form-input" value={editForm.daysPresent} onChange={e=>setEditForm(f=>({...f, daysPresent:Number(e.target.value)}))}/></div>
+                  <div className="form-group"><label className="form-label">Days Absent</label><input type="number" step="0.5" className="form-input" value={editForm.daysAbsent} onChange={e=>setEditForm(f=>({...f, daysAbsent:Number(e.target.value)}))}/></div>
+                  <div className="form-group"><label className="form-label">Basic Salary</label><input type="number" className="form-input" value={editForm.basic} onChange={e=>setEditForm(f=>({...f, basic:Number(e.target.value)}))}/></div>
+                  <div className="form-group"><label className="form-label">HRA</label><input type="number" className="form-input" value={editForm.hra} onChange={e=>setEditForm(f=>({...f, hra:Number(e.target.value)}))}/></div>
+                  <div className="form-group"><label className="form-label">Bonus</label><input type="number" className="form-input" value={editForm.bonus} onChange={e=>setEditForm(f=>({...f, bonus:Number(e.target.value)}))}/></div>
+                  <div className="form-group"><label className="form-label">PF Deduction</label><input type="number" className="form-input" value={editForm.pfEmployee} onChange={e=>setEditForm(f=>({...f, pfEmployee:Number(e.target.value)}))}/></div>
+                  <div className="form-group"><label className="form-label">TDS</label><input type="number" className="form-input" value={editForm.tds} onChange={e=>setEditForm(f=>({...f, tds:Number(e.target.value)}))}/></div>
+                  <div className="form-group"><label className="form-label">Other Deductions</label><input type="number" className="form-input" value={editForm.otherDeductions} onChange={e=>setEditForm(f=>({...f, otherDeductions:Number(e.target.value)}))}/></div>
+                </div>
+                <div style={{ marginTop:'var(--space-4)', padding:'12px', background:'var(--surface-container-low)', borderRadius:8, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div style={{ fontSize:'var(--font-size-sm)', fontWeight:600 }}>Estimated Net Pay:</div>
+                  <div style={{ fontSize:'var(--font-size-lg)', fontWeight:800, color:'var(--primary)' }}>
+                    {INR((editForm.basic||0) + (editForm.hra||0) + (editForm.bonus||0) + (editForm.specialAllowance||0) + (editForm.conveyance||0) + (editForm.medical||0) + (editForm.lta||0) - (editForm.pfEmployee||0) - (editForm.professionalTax||0) - (editForm.tds||0) - (editForm.otherDeductions||0))}
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end', marginTop:'var(--space-5)' }}>
+                  <button type="button" className="btn btn-secondary" onClick={()=>setEditingSlip(null)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={savingSlip}>{savingSlip?'Saving…':'Update Payslip'}</button>
                 </div>
               </form>
             </motion.div>

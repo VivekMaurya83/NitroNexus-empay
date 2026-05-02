@@ -61,7 +61,14 @@ def list_payslips(payrun_id: int, db: Session = Depends(get_db),
         ).all()
     else:
         slips = db.query(Payslip).filter(Payslip.payrun_id == payrun_id).all()
-    return ResponseModel(data=[PayslipOut.model_validate(s) for s in slips])
+    
+    res = []
+    for s in slips:
+        out = PayslipOut.model_validate(s)
+        out.employee_name = f"{s.employee.first_name} {s.employee.last_name}"
+        out.employee_code = s.employee.employee_code
+        res.append(out)
+    return ResponseModel(data=res)
 
 
 @router.get("/payslips/{payslip_id}", response_model=ResponseModel)
@@ -73,7 +80,87 @@ def get_payslip(payslip_id: int, db: Session = Depends(get_db),
     if cu.role == UserRole.EMPLOYEE:
         if not cu.employee or cu.employee.id != ps.employee_id:
             raise HTTPException(403, "Access denied")
-    return ResponseModel(data=PayslipOut.model_validate(ps))
+    
+    out = PayslipOut.model_validate(ps)
+    out.employee_name = f"{ps.employee.first_name} {ps.employee.last_name}"
+    out.employee_code = ps.employee.employee_code
+    return ResponseModel(data=out)
+
+
+@router.patch("/payslips/{payslip_id}", response_model=ResponseModel)
+def update_payslip(payslip_id: int, p: dict, db: Session = Depends(get_db),
+                   cu: User = Depends(require_payroll)):
+    ps = db.query(Payslip).filter(Payslip.id == payslip_id).first()
+    if not ps:
+        raise HTTPException(404, "Payslip not found")
+    
+    # Manual updates to numeric fields
+    fields = ["total_working_days", "days_present", "days_absent", "basic", "hra", 
+              "conveyance", "medical", "special_allowance", "lta", "bonus", 
+              "pf_employee", "professional_tax", "tds", "other_deductions"]
+    
+    for f in fields:
+        if f in p and p[f] is not None:
+            setattr(ps, f, p[f])
+            
+    # Recalculate totals
+    ps.gross_earnings = (float(ps.basic or 0) + float(ps.hra or 0) + 
+                         float(ps.conveyance or 0) + float(ps.medical or 0) + 
+                         float(ps.special_allowance or 0) + float(ps.lta or 0) + 
+                         float(ps.bonus or 0))
+    
+    ps.total_deductions = (float(ps.pf_employee or 0) + float(ps.professional_tax or 0) + 
+                           float(ps.tds or 0) + float(ps.other_deductions or 0))
+    
+    ps.net_pay = max(0, ps.gross_earnings - ps.total_deductions)
+    
+    db.commit()
+    db.refresh(ps)
+    
+    log_action(db, cu.id, "update_payslip", "Payslip", ps.id, 
+               f"Manual update for {ps.employee.employee_code}", company_id=cu.company_id)
+    
+    out = PayslipOut.model_validate(ps)
+    out.employee_name = f"{ps.employee.first_name} {ps.employee.last_name}"
+    out.employee_code = ps.employee.employee_code
+    return ResponseModel(data=out)
+
+
+@router.post("/payslips/{payslip_id}/recalculate", response_model=ResponseModel)
+def recalculate_payslip(payslip_id: int, db: Session = Depends(get_db),
+                        cu: User = Depends(require_payroll)):
+    ps = db.query(Payslip).filter(Payslip.id == payslip_id).first()
+    if not ps:
+        raise HTTPException(404, "Payslip not found")
+    
+    from app.services.payroll_service import _build_payslip
+    from app.models.salary import SalaryStructure
+    
+    sal = db.query(SalaryStructure).filter(
+        SalaryStructure.employee_id == ps.employee_id,
+        SalaryStructure.is_active == True,
+    ).first()
+    if not sal:
+        raise HTTPException(400, "No active salary structure found for this employee")
+    
+    # Generate new data
+    new_data = _build_payslip(db, ps.employee, ps.payrun, sal)
+    
+    # Update existing payslip object
+    for col in Payslip.__table__.columns.keys():
+        if col not in ["id", "payrun_id", "employee_id", "company_id", "created_at"]:
+            setattr(ps, col, getattr(new_data, col))
+            
+    db.commit()
+    db.refresh(ps)
+    
+    log_action(db, cu.id, "recalculate_payslip", "Payslip", ps.id, 
+               f"Recalculated for {ps.employee.employee_code}", company_id=cu.company_id)
+    
+    out = PayslipOut.model_validate(ps)
+    out.employee_name = f"{ps.employee.first_name} {ps.employee.last_name}"
+    out.employee_code = ps.employee.employee_code
+    return ResponseModel(data=out)
 
 
 @router.get("/payslips/{payslip_id}/download")
