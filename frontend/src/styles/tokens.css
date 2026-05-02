@@ -1,0 +1,106 @@
+:root {
+  /* === PRIMARY COLORS === */
+  --primary: #1d2b3e;
+  --primary-container: #334155;
+  --primary-light: #d5e3fd;
+  --on-primary: #ffffff;
+  --on-primary-container: #9eadc5;
+
+  /* === SECONDARY COLORS === */
+  --secondary: #5a5f62;
+  --secondary-container: #dce0e4;
+  --on-secondary: #ffffff;
+  --on-secondary-container: #5e6367;
+
+  /* === SURFACE === */
+  --surface: #fbf9fa;
+  --surface-dim: #dbd9db;
+  --surface-container: #efedef;
+  --surface-container-high: #eae7e9;
+  --surface-container-highest: #e4e2e4;
+  --surface-container-low: #f5f3f5;
+  --surface-container-lowest: #ffffff;
+  --surface-bright: #fbf9fa;
+
+  /* === ON SURFACE === */
+  --on-surface: #1b1b1d;
+  --on-surface-variant: #44474c;
+  --outline: #75777d;
+  --outline-variant: #c5c6cd;
+
+  /* === SEMANTIC COLORS === */
+  --success: #1a7f4e;
+  --success-container: #d4edda;
+  --on-success: #ffffff;
+  --warning: #b45309;
+  --warning-container: #fef3c7;
+  --on-warning: #ffffff;
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+  --info: #1d4ed8;
+  --info-container: #dbeafe;
+
+  /* === STATUS COLORS === */
+  --status-present: #1a7f4e;
+  --status-absent: #ba1a1a;
+  --status-late: #b45309;
+  --status-pending: #7c3aed;
+  --status-approved: #1a7f4e;
+  --status-rejected: #ba1a1a;
+  --status-active: #1a7f4e;
+  --status-inactive: #6b7280;
+
+  /* === TYPOGRAPHY === */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 32px;
+
+  /* === SPACING === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* === BORDER RADIUS === */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-full: 9999px;
+
+  /* === SHADOWS === */
+  --shadow-sm: 0 1px 2px rgba(29, 43, 62, 0.06);
+  --shadow-md: 0 4px 6px rgba(29, 43, 62, 0.07), 0 2px 4px rgba(29, 43, 62, 0.05);
+  --shadow-lg: 0 10px 15px rgba(29, 43, 62, 0.08), 0 4px 6px rgba(29, 43, 62, 0.05);
+  --shadow-xl: 0 20px 25px rgba(29, 43, 62, 0.1), 0 8px 10px rgba(29, 43, 62, 0.06);
+
+  /* === LAYOUT === */
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 64px;
+  --topbar-height: 64px;
+
+  /* === TRANSITIONS === */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 400ms ease;
+
+  /* === Z-INDEX === */
+  --z-sidebar: 100;
+  --z-topbar: 90;
+  --z-modal: 200;
+  --z-toast: 300;
+}
