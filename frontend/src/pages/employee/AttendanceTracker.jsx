@@ -49,6 +49,7 @@ export default function AttendanceTracker() {
       const rec = await clockIn(user.employeeId);
       // Store attendance record ID — required for checkout endpoint
       setTodayRecord({ id: rec.id || rec.attendanceId, checkIn: rec.checkIn, status:'present' });
+      window.dispatchEvent(new Event('attendanceChanged'));
     } finally { setClockLoading(false); }
   };
 
@@ -58,6 +59,7 @@ export default function AttendanceTracker() {
     try {
       const rec = await clockOut(todayRecord.id);
       setTodayRecord(r => ({ ...r, checkOut: rec.checkOut, hours: rec.hours }));
+      window.dispatchEvent(new Event('attendanceChanged'));
     } finally { setClockLoading(false); }
   };
 

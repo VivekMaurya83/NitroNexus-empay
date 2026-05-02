@@ -1,9 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Bell, Search, Menu } from 'lucide-react';
+import { getMyTodayRecord } from '../../services/attendanceService';
 import './TopBar.css';
 
 export default function TopBar({ user, pageTitle, onMenuToggle, alertCount = 0, onAlertClick }) {
+  const [isClockedIn, setIsClockedIn] = useState(false);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const record = await getMyTodayRecord();
+        setIsClockedIn(!!(record && record.checkIn && !record.checkOut));
+      } catch (err) {
+        console.error("Failed to fetch attendance status", err);
+      }
+    };
+    
+    // Initial fetch
+    fetchStatus();
+
+    // Listen for custom event when attendance changes
+    const handleAttendanceChange = () => fetchStatus();
+    window.addEventListener('attendanceChanged', handleAttendanceChange);
+    
+    return () => window.removeEventListener('attendanceChanged', handleAttendanceChange);
+  }, []);
+
   return (
     <motion.header
       className="topbar"
@@ -56,11 +79,32 @@ export default function TopBar({ user, pageTitle, onMenuToggle, alertCount = 0, 
         </motion.button>
 
         <div className="topbar-user">
-          <div
-            className="avatar avatar-sm topbar-avatar"
-            style={{ background: user?.photoColor || 'var(--primary-container)' }}
-          >
-            {user?.avatar || user?.name?.[0] || 'U'}
+          <div style={{ position: 'relative' }}>
+            <div
+              className="avatar avatar-sm topbar-avatar"
+              style={{ background: user?.photoColor || 'var(--primary-container)', overflow: 'hidden' }}
+            >
+              {user?.avatarUrl ? (
+                <img src={`${(import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '')}${user.avatarUrl}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                user?.avatar || user?.name?.[0] || 'U'
+              )}
+            </div>
+            {/* Status Indicator */}
+            <div
+              title={isClockedIn ? "Online (Clocked In)" : "Offline (Clocked Out)"}
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                right: -2,
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                background: isClockedIn ? '#4CAF50' : '#F44336', // Green or Red
+                border: '2px solid var(--surface-container-lowest)',
+                zIndex: 1
+              }}
+            />
           </div>
           <div className="topbar-user-info">
             <span className="topbar-user-name">{user?.name}</span>
