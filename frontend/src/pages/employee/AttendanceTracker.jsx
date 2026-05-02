@@ -8,6 +8,8 @@ import {
   clockIn, clockOut, getMyTodayRecord, getMonthlySummary,
   getAttendanceRange, getTodayStatusBoard,
 } from '../../services/attendanceService';
+import StatCard from '../../components/ui/StatCard';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const DEPT_FILTERS   = ['All','Engineering','HR','Finance','Design','Analytics','Product'];
 const STATUS_FILTERS = ['All','present','late','absent','work_from_home','on_leave'];
@@ -70,8 +72,10 @@ export default function AttendanceTracker() {
   if (isEmployee) {
     return (
       <div>
-        <h1 className="page-title">My Attendance</h1>
-        <p className="page-subtitle">Clock in / out and view your monthly history</p>
+        <PremiumHeader 
+          title="My Attendance" 
+          subtitle="Clock in / out and view your monthly history" 
+        />
 
         <motion.div className="card" style={{ maxWidth:560, marginBottom:'var(--space-6)',
           background: isClockedIn ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : 'linear-gradient(135deg,#f8fafc,#f1f5f9)',
@@ -145,23 +149,21 @@ export default function AttendanceTracker() {
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'var(--space-5)' }}>
-        <div><h1 className="page-title">Attendance Management</h1><p className="page-subtitle">Today's check-in status for all employees</p></div>
-        <motion.button className="btn btn-secondary" whileHover={{ scale:1.02 }}><Download size={16}/> Export</motion.button>
-      </div>
+      <PremiumHeader 
+        title="Attendance Management" 
+        subtitle="Today's check-in status for all employees"
+        actionRight={
+          <motion.button className="btn" style={{ background: '#fff', color: 'var(--primary)' }} whileHover={{ scale:1.02 }}>
+            <Download size={16}/> Export
+          </motion.button>
+        }
+      />
 
-      <div className="stats-grid" style={{ marginBottom:'var(--space-4)' }}>
-        {[
-          { label:'Present', value:allLogs.filter(a=>a.status==='present').length,        color:'var(--success)' },
-          { label:'Late',    value:allLogs.filter(a=>a.status==='late').length,            color:'var(--warning)' },
-          { label:'Absent',  value:allLogs.filter(a=>a.status==='absent').length,          color:'var(--error)'   },
-          { label:'WFH',     value:allLogs.filter(a=>a.status==='work_from_home').length,  color:'var(--info)'    },
-        ].map((s,i)=>(
-          <motion.div key={s.label} className="stat-card" initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}>
-            <div className="stat-value" style={{ color:s.color }}>{s.value}</div>
-            <div className="stat-label">{s.label}</div>
-          </motion.div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+        <StatCard label="Present" value={allLogs.filter(a=>a.status==='present').length} gradient="linear-gradient(135deg, #10b981, #059669)" delay={0} />
+        <StatCard label="Late" value={allLogs.filter(a=>a.status==='late').length} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0.08} />
+        <StatCard label="Absent" value={allLogs.filter(a=>a.status==='absent').length} gradient="linear-gradient(135deg, #ef4444, #dc2626)" delay={0.16} />
+        <StatCard label="WFH" value={allLogs.filter(a=>a.status==='work_from_home').length} gradient="linear-gradient(135deg, #3b82f6, #2563eb)" delay={0.24} />
       </div>
 
       <div className="filter-bar" style={{ marginBottom:'var(--space-4)' }}>

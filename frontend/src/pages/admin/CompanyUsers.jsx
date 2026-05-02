@@ -8,6 +8,8 @@ import { useAuth, ROLES } from '../../context/AuthContext';
 import { getCompanyUsers, deleteUser, inviteHR, invitePayroll } from '../../services/adminService';
 import { getPayrollRules, updatePayrollRules } from '../../services/payrollService';
 import StatusBadge from '../../components/ui/StatusBadge';
+import StatCard from '../../components/ui/StatCard';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const TABS = [
   { key: 'users',   label: 'All Users',     icon: Users },
@@ -115,12 +117,20 @@ export default function CompanyUsers() {
 
   return (
     <div className="company-users-page">
-      <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
-        <div>
-          <h1 className="page-title">Company Management</h1>
-          <p className="page-subtitle">Manage all system users, invite staff, and configure payroll rules</p>
+      <PremiumHeader
+        title="Company Management"
+        subtitle="Manage all system users, invite staff, and configure payroll rules"
+      />
+
+      {/* User summary stat cards */}
+      {!loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+          <StatCard icon={Users} label="Total Users" value={users.length} gradient="linear-gradient(135deg, #6366f1, #4f46e5)" delay={0} />
+          <StatCard icon={ShieldCheck} label="Admins" value={users.filter(u => u.role === 'admin').length} gradient="linear-gradient(135deg, #ef4444, #dc2626)" delay={0.07} />
+          <StatCard icon={Building2} label="HR Officers" value={users.filter(u => u.role === 'hr_officer').length} gradient="linear-gradient(135deg, #10b981, #059669)" delay={0.14} />
+          <StatCard icon={Users} label="Employees" value={users.filter(u => u.role === 'employee').length} gradient="linear-gradient(135deg, #3b82f6, #2563eb)" delay={0.21} />
         </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="tabs" style={{ marginBottom: 'var(--space-5)' }}>

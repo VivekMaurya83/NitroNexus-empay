@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Plus } from 'lucide-react';
 import { leaveAllocations, employees, leaveTypes } from '../../utils/mockData';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 export default function LeaveAllocation() {
   const [allocations, setAllocations] = useState(leaveAllocations);
@@ -22,8 +23,7 @@ export default function LeaveAllocation() {
 
   return (
     <div>
-      <h1 className="page-title">Leave Allocation</h1>
-      <p className="page-subtitle">Allocate annual leave balances to employees</p>
+      <PremiumHeader title="Leave Allocation" subtitle="Allocate annual leave balances to employees" />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--space-4)' }}>
         {/* Form */}

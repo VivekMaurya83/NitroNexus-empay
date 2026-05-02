@@ -7,6 +7,8 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth, ROLES } from '../../context/AuthContext';
 import { getEmployees, getDepartments, deleteEmployee } from '../../services/employeeService';
 import { AnimatePresence } from 'motion/react';
+import StatCard from '../../components/ui/StatCard';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const STATUS_FILTERS = ['All', 'active', 'inactive', 'terminated'];
 
@@ -84,22 +86,32 @@ export default function HRDirectory() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--space-5)' }}>
-        <div>
-          <h1 className="page-title">{activeTab === 'employees' ? 'HR Directory' : 'Department Management'}</h1>
-          <p className="page-subtitle">{activeTab === 'employees' ? 'Manage and view all employee profiles' : 'Manage organizational departments and structures'}</p>
+      <PremiumHeader
+        title={activeTab === 'employees' ? 'HR Directory' : 'Department Management'}
+        subtitle={activeTab === 'employees' ? 'Manage and view all employee profiles' : 'Manage organizational departments and structures'}
+        actionRight={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <motion.button className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)' }} onClick={load} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <RefreshCw size={14} />
+            </motion.button>
+            {activeTab === 'employees' && (
+              <Link to="/hr/add-employee" className="btn" style={{ background: '#fff', color: 'var(--primary)' }}>
+                <UserPlus size={16} /> Add Employee
+              </Link>
+            )}
+          </div>
+        }
+      />
+
+      {/* Workforce summary stat cards */}
+      {!loading && activeTab === 'employees' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+          <StatCard icon={Users} label="Total Employees" value={emps.length} gradient="linear-gradient(135deg, #6366f1, #4f46e5)" delay={0} />
+          <StatCard icon={Building2} label="Active" value={emps.filter(e => e.status === 'active').length} gradient="linear-gradient(135deg, #10b981, #059669)" delay={0.07} />
+          <StatCard icon={FolderTree} label="Departments" value={depts.length} gradient="linear-gradient(135deg, #3b82f6, #2563eb)" delay={0.14} />
+          <StatCard icon={Users} label="Inactive / Terminated" value={emps.filter(e => e.status !== 'active').length} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0.21} />
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <motion.button className="btn btn-secondary btn-sm" onClick={load} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} title="Refresh">
-            <RefreshCw size={14} />
-          </motion.button>
-          {activeTab === 'employees' && (
-            <Link to="/hr/add-employee" className="btn btn-primary">
-              <UserPlus size={16} /> Add Employee
-            </Link>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="tabs" style={{ marginBottom: 'var(--space-4)' }}>

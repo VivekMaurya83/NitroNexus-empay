@@ -4,6 +4,7 @@ import { Plus, Trash2, Save } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { ROLES } from '../../context/AuthContext';
 import { getEmployees } from '../../services/employeeService';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const ROLE_OPTIONS = [
   { value: ROLES.EMPLOYEE,  label: 'Employee' },
@@ -22,8 +23,7 @@ export default function AdminSettings() {
 
   return (
     <div>
-      <h1 className="page-title">Settings & Role Management</h1>
-      <p className="page-subtitle">Manage user roles and system access permissions</p>
+      <PremiumHeader title="Settings &amp; Role Management" subtitle="Manage user roles and system access permissions" />
 
       {/* Role Legend */}
       <motion.div className="card card-sm" style={{ marginBottom: 'var(--space-4)' }} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>

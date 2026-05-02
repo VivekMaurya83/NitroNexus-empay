@@ -13,6 +13,8 @@ import {
 } from '../../services/payrollService';
 import { getEmployees } from '../../services/employeeService';
 import { useNavigate } from 'react-router-dom';
+import StatCard from '../../components/ui/StatCard';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const INR = (v) => `₹${Number(v||0).toLocaleString('en-IN')}`;
 const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -211,17 +213,17 @@ export default function PayrollManagement() {
 
   return (
     <div className="payroll-page">
-      <div className="page-header" style={{ marginBottom: 'var(--space-6)' }}>
-        <div>
-          <h1 className="page-title">Payroll & Compensation</h1>
-          <p className="page-subtitle">Manage payruns, payslips, and employee salary structures</p>
-        </div>
-        {activeTab === 'management' && canRun && (
-          <motion.button className="btn btn-primary" onClick={()=>setShowModal(true)} whileHover={{ scale:1.02 }}>
-            <Play size={16}/> Run Payroll
-          </motion.button>
-        )}
-      </div>
+      <PremiumHeader
+        title="Payroll & Compensation"
+        subtitle="Manage payruns, payslips, and employee salary structures"
+        actionRight={
+          activeTab === 'management' && canRun && (
+            <motion.button className="btn" style={{ background: '#fff', color: 'var(--primary)' }} onClick={()=>setShowModal(true)} whileHover={{ scale:1.02 }}>
+              <Play size={16}/> Run Payroll
+            </motion.button>
+          )
+        }
+      />
 
       <div className="tabs" style={{ marginBottom: 'var(--space-5)' }}>
         <button className={`tab-btn ${activeTab === 'management' ? 'active' : ''}`} onClick={() => setTab('management')}>
@@ -240,17 +242,10 @@ export default function PayrollManagement() {
           <motion.div key="management" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
             {/* Summary cards from latest */}
             {payruns[0] && (
-              <div className="stats-grid" style={{ marginBottom:'var(--space-4)' }}>
-                {[
-                  { label:'Employees',     value: payruns[0].employees,           color:'var(--primary-container)' },
-                  { label:'Gross Payout',  value: INR(payruns[0].totalGross),      color:'var(--success)' },
-                  { label:'Net Payout',    value: INR(payruns[0].totalNet),        color:'var(--info)'    },
-                ].map((s,i) => (
-                  <div key={s.label} className="stat-card">
-                    <div className="stat-value" style={{ color:s.color }}>{s.value}</div>
-                    <div className="stat-label">{s.label} (Latest)</div>
-                  </div>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+                <StatCard icon={Users} label="Employees (Latest)" value={payruns[0].employees} gradient="linear-gradient(135deg, #6366f1, #4f46e5)" delay={0} />
+                <StatCard icon={TrendingUp} label="Gross Payout" value={INR(payruns[0].totalGross)} gradient="linear-gradient(135deg, #10b981, #059669)" delay={0.08} />
+                <StatCard icon={DollarSign} label="Net Payout" value={INR(payruns[0].totalNet)} gradient="linear-gradient(135deg, #3b82f6, #2563eb)" delay={0.16} />
               </div>
             )}
 

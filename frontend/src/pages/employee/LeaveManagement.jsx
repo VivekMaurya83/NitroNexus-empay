@@ -14,6 +14,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line
 } from 'recharts';
+import StatCard from '../../components/ui/StatCard';
+import ChartCard from '../../components/ui/ChartCard';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const getLeaveTypes = () => api.get('/leaves/types');
 const createLeaveType = (data) => api.post('/leaves/policies', data);
@@ -81,34 +84,25 @@ function LeaveAnalyticsTab({ analyticsData, leaves, deptF, setDeptF }) {
   return (
     <motion.div key="analytics" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
       {/* Summary stat cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
-        {[
-          { label:'Total Requests',   value:totalLeaves,   color:'#6366f1', bg:'#eef2ff' },
-          { label:'Approved',          value:totalApproved, color:'#16a34a', bg:'#dcfce7' },
-          { label:'Pending Approval',  value:totalPending,  color:'#d97706', bg:'#fef3c7' },
-          { label:'Total Days Taken',  value:totalDays,     color:'#3b82f6', bg:'#dbeafe' },
-        ].map((s,i) => (
-          <motion.div key={s.label} initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.07 }}
-            style={{ background:s.bg, borderRadius:14, padding:'16px 20px', borderLeft:`4px solid ${s.color}` }}>
-            <div style={{ fontSize:30, fontWeight:800, color:s.color }}>{s.value}</div>
-            <div style={{ fontSize:12, color:'#475569', marginTop:2 }}>{s.label}</div>
-          </motion.div>
-        ))}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>
+        <StatCard icon={FileText} label="Total Requests" value={totalLeaves} gradient="linear-gradient(135deg, #6366f1, #4f46e5)" delay={0} />
+        <StatCard icon={CheckCircle} label="Approved" value={totalApproved} gradient="linear-gradient(135deg, #10b981, #059669)" delay={0.07} />
+        <StatCard icon={AlertCircle} label="Pending Approval" value={totalPending} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0.14} />
+        <StatCard icon={CalendarDays} label="Total Days Taken" value={totalDays} gradient="linear-gradient(135deg, #3b82f6, #2563eb)" delay={0.21} />
       </div>
 
       {/* Row 1: Department bar chart + Leave type pie */}
       <div style={{ display:'grid', gridTemplateColumns:'3fr 2fr', gap:20, marginBottom:20 }}>
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Leave by Department</div>
-              <div className="card-subtitle">Approved · Pending · Rejected per dept</div>
-            </div>
+        <ChartCard 
+          title="Leave by Department" 
+          subtitle="Approved · Pending · Rejected per dept"
+          headerAction={
             <select className="form-select" style={{ width:160, fontSize:13 }} value={deptF} onChange={e => setDeptF(e.target.value)}>
               <option>All</option>
               {leaveByDept.map(d => <option key={d.dept}>{d.dept}</option>)}
             </select>
-          </div>
+          }
+        >
           {leaveFiltered.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={leaveFiltered} margin={{ top:8, right:16, left:-10, bottom:0 }}>
@@ -128,15 +122,9 @@ function LeaveAnalyticsTab({ analyticsData, leaves, deptF, setDeptF }) {
               <span style={{ fontSize:13 }}>No leave data by department yet</span>
             </div>
           )}
-        </div>
+        </ChartCard>
 
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Leave Type Breakdown</div>
-              <div className="card-subtitle">Distribution by type</div>
-            </div>
-          </div>
+        <ChartCard title="Leave Type Breakdown" subtitle="Distribution by type">
           {typePie.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
@@ -162,18 +150,12 @@ function LeaveAnalyticsTab({ analyticsData, leaves, deptF, setDeptF }) {
           ) : (
             <div style={{ height:200, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--on-surface-variant)', fontSize:13 }}>No data</div>
           )}
-        </div>
+        </ChartCard>
       </div>
 
       {/* Row 2: Status breakdown + Stacked bars */}
       <div style={{ display:'grid', gridTemplateColumns:'2fr 3fr', gap:20 }}>
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Status Overview</div>
-              <div className="card-subtitle">Request status distribution</div>
-            </div>
-          </div>
+        <ChartCard title="Status Overview" subtitle="Request status distribution">
           {statusPie.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
@@ -202,22 +184,16 @@ function LeaveAnalyticsTab({ analyticsData, leaves, deptF, setDeptF }) {
           ) : (
             <div style={{ height:200, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--on-surface-variant)', fontSize:13 }}>No data</div>
           )}
-        </div>
+        </ChartCard>
 
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Department Distribution (Stacked)</div>
-              <div className="card-subtitle">Full proportion view per department</div>
-            </div>
-          </div>
+        <ChartCard title="Department Distribution (Stacked)" subtitle="Full proportion view per department">
           <div style={{ paddingTop:8 }}>
             {leaveFiltered.length > 0
               ? leaveFiltered.map(d => <StackedBar key={d.dept} label={d.dept} approved={d.approved} pending={d.pending} rejected={d.rejected} />)
               : <div style={{ color:'var(--on-surface-variant)', fontSize:13, padding:'24px 0', textAlign:'center' }}>No department data</div>
             }
           </div>
-        </div>
+        </ChartCard>
       </div>
     </motion.div>
   );
@@ -377,17 +353,17 @@ export default function LeaveManagement() {
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'var(--space-5)' }}>
-        <div>
-          <h1 className="page-title">Leave {activeTab==='analytics'?'Analytics':'Management'}</h1>
-          <p className="page-subtitle">{activeTab==='analytics'?'Insights and trends across departments':'Review, approve and apply for leave'}</p>
-        </div>
-        {(activeTab === 'requests' && (isEmployee || isAdmin || isHR)) && (
-          <motion.button className="btn btn-primary" onClick={()=>setShowApply(true)} whileHover={{ scale:1.02 }}>
-            <Plus size={16}/> Apply Leave
-          </motion.button>
-        )}
-      </div>
+      <PremiumHeader 
+        title={`Leave ${activeTab==='analytics'?'Analytics':'Management'}`}
+        subtitle={activeTab==='analytics'?'Insights and trends across departments':'Review, approve and apply for leave'}
+        actionRight={
+          (activeTab === 'requests' && (isEmployee || isAdmin || isHR)) && (
+            <motion.button className="btn" style={{ background: '#fff', color: 'var(--primary)' }} onClick={()=>setShowApply(true)} whileHover={{ scale:1.02 }}>
+              <Plus size={16}/> Apply Leave
+            </motion.button>
+          )
+        }
+      />
 
       {/* Tabs for Admin/HR/Payroll */}
       {!isEmployee && (
@@ -409,13 +385,17 @@ export default function LeaveManagement() {
           <motion.div key="requests" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
             {/* Leave Balance Cards — Employee only */}
             {isEmployee && allocations.length > 0 && (
-              <div className="stats-grid" style={{ marginBottom:'var(--space-4)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
                 {allocations.map((a,i) => (
-                  <motion.div key={a.id} className="stat-card" initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}>
-                    <div className="stat-value" style={{ color:'var(--primary-container)' }}>{a.remaining}</div>
-                    <div className="stat-label">{a.leaveType || `Policy #${a.policyId}`}</div>
-                    <div style={{ fontSize:'var(--font-size-xs)', color:'var(--on-surface-variant)', marginTop:2 }}>{a.used} used / {a.allocated} total</div>
-                  </motion.div>
+                  <StatCard 
+                    key={a.id} 
+                    icon={CalendarDays} 
+                    label={a.leaveType || `Policy #${a.policyId}`} 
+                    value={a.remaining} 
+                    sub={`${a.used} used / ${a.allocated} total`}
+                    gradient="linear-gradient(135deg, #3b82f6, #2563eb)"
+                    delay={i*0.08}
+                  />
                 ))}
               </div>
             )}

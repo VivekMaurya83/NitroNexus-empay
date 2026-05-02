@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, Users, Clock, UserX } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { getTodayStatusBoard } from '../../services/attendanceService';
+import PremiumHeader from '../../components/ui/PremiumHeader';
+import StatCard from '../../components/ui/StatCard';
 
 const DEPT_FILTERS = ['All', 'Engineering', 'HR', 'Finance', 'Design', 'Analytics', 'Product'];
 const STATUS_FILTERS = ['All', 'present', 'late', 'absent'];
@@ -34,21 +36,13 @@ export default function EmployeeStatusBoard() {
 
   return (
     <div>
-      <h1 className="page-title">Employee Status Board</h1>
-      <p className="page-subtitle">Live today's check-in / check-out status for all employees</p>
+      <PremiumHeader title="Employee Status Board" subtitle="Live today's check-in / check-out status for all employees" />
 
       {/* Stats row */}
-      <div className="stats-grid" style={{ gridTemplateColumns:'repeat(3,1fr)', marginBottom:'var(--space-4)' }}>
-        {[
-          { label:'Present Today', value: stats.present, color:'var(--success)'  },
-          { label:'Late',          value: stats.late,    color:'var(--warning)'  },
-          { label:'Absent',        value: stats.absent,  color:'var(--error)'    },
-        ].map((s, i) => (
-          <motion.div key={s.label} className="stat-card" initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay: i * 0.08 }}>
-            <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-            <div className="stat-label">{s.label}</div>
-          </motion.div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+        <StatCard icon={Users} label="Present Today" value={stats.present} gradient="linear-gradient(135deg, #10b981, #059669)" delay={0} />
+        <StatCard icon={Clock} label="Late" value={stats.late} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0.08} />
+        <StatCard icon={UserX} label="Absent" value={stats.absent} gradient="linear-gradient(135deg, #ef4444, #dc2626)" delay={0.16} />
       </div>
 
       {/* Filters */}

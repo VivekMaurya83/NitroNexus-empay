@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Bell, AlertTriangle, Info, X, Send, UserPlus } from 'lucide-react';
 import { getSystemAlerts, dismissAlert } from '../../services/analyticsService';
 import { sendEmployeeNudge } from '../../services/employeeService';
+import PremiumHeader from '../../components/ui/PremiumHeader';
+import StatCard from '../../components/ui/StatCard';
 
 const ICONS   = { no_bank_details:'⚠️', no_manager:'👤' };
 const COLORS  = { warning:'#f59e0b', info:'#3b82f6' };
@@ -40,27 +42,17 @@ export default function AdminAlerts({ embedded = false }) {
   return (
     <div>
       {!embedded && (
-        <>
-          <h1 className="page-title">System Alerts</h1>
-          <p className="page-subtitle">Action-required items that need your attention</p>
-        </>
+        <PremiumHeader title="System Alerts" subtitle="Action-required items that need your attention" />
       )}
 
-      {/* Stats */}
-      <div style={{ display:'flex', gap:'var(--space-3)', marginBottom:'var(--space-4)', flexWrap:'wrap' }}>
-        <div className="stat-card" style={{ flex:'0 0 auto', minWidth:140, padding:'var(--space-3)' }}>
-          <div className="stat-value" style={{ color:'var(--warning)', fontSize:'var(--font-size-xl)' }}>{alerts.filter(a=>a.type==='no_bank_details').length}</div>
-          <div className="stat-label">Missing Bank Details</div>
+      {!embedded && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+          <StatCard icon={AlertTriangle} label="Missing Bank Details" value={alerts.filter(a=>a.type==='no_bank_details').length} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0} />
+          <StatCard icon={UserPlus} label="No Manager Assigned" value={alerts.filter(a=>a.type==='no_manager').length} gradient="linear-gradient(135deg, #6366f1, #4f46e5)" delay={0.08} />
+          <StatCard icon={Bell} label="Total Alerts" value={alerts.length} gradient="linear-gradient(135deg, #ef4444, #dc2626)" delay={0.16} />
         </div>
-        <div className="stat-card" style={{ flex:'0 0 auto', minWidth:140, padding:'var(--space-3)' }}>
-          <div className="stat-value" style={{ color:'var(--info)', fontSize:'var(--font-size-xl)' }}>{alerts.filter(a=>a.type==='no_manager').length}</div>
-          <div className="stat-label">No Manager Assigned</div>
-        </div>
-        <div className="stat-card" style={{ flex:'0 0 auto', minWidth:140, padding:'var(--space-3)' }}>
-          <div className="stat-value" style={{ color:'var(--error)', fontSize:'var(--font-size-xl)' }}>{alerts.length}</div>
-          <div className="stat-label">Total Alerts</div>
-        </div>
-      </div>
+      )}
+
 
       {/* Filter chips */}
       <div className="filter-chips" style={{ marginBottom:'var(--space-4)' }}>

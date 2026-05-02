@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BarChart2, CalendarDays, Clock, TrendingUp } from 'lucide-react';
+import { BarChart2, CalendarDays, Clock, TrendingUp, CheckCircle, AlertCircle } from 'lucide-react';
 import { getAnalytics } from '../../services/analyticsService';
+import PremiumHeader from '../../components/ui/PremiumHeader';
+import StatCard from '../../components/ui/StatCard';
 
 const TABS = [
   { key:'leave',      label:'Leave Analytics',     icon: CalendarDays },
@@ -61,22 +63,14 @@ export default function Analytics() {
 
   return (
     <div>
-      <h1 className="page-title">Analytics</h1>
-      <p className="page-subtitle">Leave, attendance and productivity insights for your team</p>
+      <PremiumHeader title="Analytics" subtitle="Leave, attendance and productivity insights for your team" />
 
       {/* Summary cards */}
-      <div className="stats-grid" style={{ marginBottom:'var(--space-5)' }}>
-        {[
-          { label:'Total Leave Days Taken', value: data.leaveByDept.reduce((s,d)=>s+d.approved,0), color:'var(--success)' },
-          { label:'Pending Approvals',      value: data.leaveByDept.reduce((s,d)=>s+d.pending,0),  color:'var(--warning)' },
-          { label:'Avg Hours (Apr)',         value: `${Math.round(data.hoursWorked.reduce((s,e)=>s+e.hours,0)/data.hoursWorked.length)}h`, color:'var(--primary-container)' },
-          { label:'Attendance Rate (Apr)',   value: `${Math.round((data.monthlyAttendance.find(m=>m.month==='Apr')?.present/26)*100)}%`, color:'var(--info)' },
-        ].map((s,i) => (
-          <motion.div key={s.label} className="stat-card" initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.08 }}>
-            <div className="stat-value" style={{ color:s.color }}>{s.value}</div>
-            <div className="stat-label">{s.label}</div>
-          </motion.div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+        <StatCard icon={CalendarDays} label="Total Leave Days Taken" value={data.leaveByDept.reduce((s,d)=>s+d.approved,0)} gradient="linear-gradient(135deg, #10b981, #059669)" delay={0} />
+        <StatCard icon={AlertCircle} label="Pending Approvals" value={data.leaveByDept.reduce((s,d)=>s+d.pending,0)} gradient="linear-gradient(135deg, #f59e0b, #d97706)" delay={0.08} />
+        <StatCard icon={Clock} label="Avg Hours (Apr)" value={`${Math.round(data.hoursWorked.reduce((s,e)=>s+e.hours,0)/data.hoursWorked.length)}h`} gradient="linear-gradient(135deg, #6366f1, #4f46e5)" delay={0.16} />
+        <StatCard icon={TrendingUp} label="Attendance Rate (Apr)" value={`${Math.round((data.monthlyAttendance.find(m=>m.month==='Apr')?.present/26)*100)}%`} gradient="linear-gradient(135deg, #3b82f6, #2563eb)" delay={0.24} />
       </div>
 
       {/* Tabs */}

@@ -15,40 +15,13 @@ import { getLeaveRequests, getLeaveAllocations } from '../../services/leaveServi
 import { getMonthlySummary } from '../../services/attendanceService';
 import { getEmployees } from '../../services/employeeService';
 import api from '../../services/api';
+import StatCard from '../../components/ui/StatCard';
+import ChartCard from '../../components/ui/ChartCard';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PIE_COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6'];
 
-/* ── helpers ─────────────────────────────────────────────────── */
-function StatCard({ icon: Icon, label, value, gradient, sub }) {
-  return (
-    <motion.div initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }}
-      style={{ background:gradient, borderRadius:16, padding:'20px 22px', position:'relative',
-        overflow:'hidden', color:'#fff', boxShadow:'0 4px 20px rgba(0,0,0,0.12)' }}>
-      <div style={{ position:'absolute',top:-20,right:-20,width:90,height:90,borderRadius:'50%',background:'rgba(255,255,255,0.12)' }} />
-      <div style={{ position:'absolute',top:14,right:18,background:'rgba(255,255,255,0.2)',borderRadius:10,padding:8,display:'flex' }}>
-        <Icon size={18} color="#fff" />
-      </div>
-      <div style={{ fontSize:34,fontWeight:800,lineHeight:1,marginBottom:3 }}>{value}</div>
-      <div style={{ fontSize:13,fontWeight:600,opacity:0.9,marginBottom:2 }}>{label}</div>
-      {sub && <div style={{ fontSize:11,opacity:0.7 }}>{sub}</div>}
-    </motion.div>
-  );
-}
-
-function ChartCard({ title, subtitle, children, delay=0, style={} }) {
-  return (
-    <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ delay }}
-      style={{ background:'var(--surface-container-lowest)', border:'1px solid var(--outline-variant)',
-        borderRadius:16, padding:'20px 22px', ...style }}>
-      <div style={{ marginBottom:16 }}>
-        <div style={{ fontWeight:700, fontSize:15 }}>{title}</div>
-        {subtitle && <div style={{ fontSize:12,color:'var(--on-surface-variant)',marginTop:2 }}>{subtitle}</div>}
-      </div>
-      {children}
-    </motion.div>
-  );
-}
 
 /* ── main component ──────────────────────────────────────────── */
 export default function EmployeePortal() {
@@ -140,39 +113,29 @@ export default function EmployeePortal() {
   return (
     <div style={{ maxWidth:1300 }}>
       {/* Welcome banner */}
-      <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }}
-        style={{ background:'linear-gradient(135deg, #1e293b 0%, #334155 60%, #1e3a5f 100%)',
-          borderRadius:20, padding:'28px 32px', marginBottom:24, color:'#fff',
-          position:'relative', overflow:'hidden' }}>
-        <div style={{ position:'absolute',right:-40,top:-40,width:220,height:220,background:'rgba(255,255,255,0.04)',borderRadius:'50%' }} />
-        <div style={{ position:'absolute',right:60,bottom:-60,width:180,height:180,background:'rgba(255,255,255,0.03)',borderRadius:'50%' }} />
-        <div style={{ position:'relative' }}>
-          <div style={{ fontSize:13,opacity:0.7,marginBottom:6 }}>{greeting} {gEmoji}</div>
-          <h2 style={{ fontSize:28,fontWeight:800,marginBottom:6,letterSpacing:'-0.02em' }}>{user?.name || 'Welcome'}</h2>
-          <div style={{ opacity:0.7,fontSize:14,marginBottom:16 }}>
-            {user?.designation || user?.role?.replace('_',' ')} · {user?.company || 'Your Company'}
+      <PremiumHeader
+        pretitle={`${greeting} ${gEmoji}`}
+        title={user?.name || 'Welcome'}
+        subtitle={`${user?.designation || user?.role?.replace('_',' ')} · ${user?.company || 'Your Company'}`}
+      >
+        {todayRecord ? (
+          <div style={{ display:'inline-flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.12)',
+            padding:'7px 16px',borderRadius:99,fontSize:13,border:'1px solid rgba(255,255,255,0.15)' }}>
+            <CheckCircle size={14} color="#4ade80" />
+            {todayRecord.checkIn ? `Clocked in at ${todayRecord.checkIn}` : 'Not clocked in yet'}
           </div>
-          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-            {todayRecord ? (
-              <div style={{ display:'inline-flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.12)',
-                padding:'7px 16px',borderRadius:99,fontSize:13,border:'1px solid rgba(255,255,255,0.15)' }}>
-                <CheckCircle size={14} color="#4ade80" />
-                {todayRecord.checkIn ? `Clocked in at ${todayRecord.checkIn}` : 'Not clocked in yet'}
-              </div>
-            ) : !loading && user?.employeeId ? (
-              <div style={{ display:'inline-flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.08)',
-                padding:'7px 16px',borderRadius:99,fontSize:13,border:'1px solid rgba(255,255,255,0.1)' }}>
-                <AlertCircle size={14} color="#fbbf24" /> No attendance record today
-              </div>
-            ) : null}
-            <div style={{ display:'inline-flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.08)',
-              padding:'7px 16px',borderRadius:99,fontSize:13,border:'1px solid rgba(255,255,255,0.1)' }}>
-              <CalendarDays size={14} />
-              {new Date().toLocaleDateString('en-IN',{ weekday:'long', day:'numeric', month:'long' })}
-            </div>
+        ) : !loading && user?.employeeId ? (
+          <div style={{ display:'inline-flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.08)',
+            padding:'7px 16px',borderRadius:99,fontSize:13,border:'1px solid rgba(255,255,255,0.1)' }}>
+            <AlertCircle size={14} color="#fbbf24" /> No attendance record today
           </div>
+        ) : null}
+        <div style={{ display:'inline-flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.08)',
+          padding:'7px 16px',borderRadius:99,fontSize:13,border:'1px solid rgba(255,255,255,0.1)' }}>
+          <CalendarDays size={14} />
+          {new Date().toLocaleDateString('en-IN',{ weekday:'long', day:'numeric', month:'long' })}
         </div>
-      </motion.div>
+      </PremiumHeader>
 
       {/* Stat cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:24 }}>

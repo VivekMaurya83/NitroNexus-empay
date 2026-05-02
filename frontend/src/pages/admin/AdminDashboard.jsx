@@ -12,33 +12,11 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { getEmployees } from '../../services/employeeService';
 import { getLeaveRequests } from '../../services/leaveService';
+import StatCard from '../../components/ui/StatCard';
+import PremiumHeader from '../../components/ui/PremiumHeader';
 
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const fadeUp  = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
-
-function StatCard({ icon: Icon, label, value, sub, color, gradient, delay = 0 }) {
-  return (
-    <motion.div variants={fadeUp} transition={{ delay }}
-      style={{
-        background: gradient,
-        borderRadius: 16,
-        padding: '20px 24px',
-        position: 'relative',
-        overflow: 'hidden',
-        color: '#fff',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
-      }}
-    >
-      <div style={{ position: 'absolute', top: -20, right: -20, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,0.12)' }} />
-      <div style={{ position: 'absolute', top: 10, right: 24, background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: 8, display: 'flex' }}>
-        <Icon size={20} color="#fff" />
-      </div>
-      <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1, marginBottom: 4 }}>{value}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, marginBottom: 2 }}>{label}</div>
-      {sub && <div style={{ fontSize: 11, opacity: 0.7 }}>{sub}</div>}
-    </motion.div>
-  );
-}
 
 
 function AttendanceBar({ present, total }) {
@@ -137,24 +115,20 @@ export default function AdminDashboard() {
   return (
     <div style={{ maxWidth: 1400 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--on-surface)', marginBottom: 4 }}>
-            {greeting}, {user?.name?.split(' ')[0]}! 👋
-          </h1>
-          <p style={{ fontSize: 14, color: 'var(--on-surface-variant)' }}>
-            Here's what's happening at <strong>{user?.company || 'your company'}</strong> — {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
-        </div>
+      <PremiumHeader 
+        pretitle={`${greeting} 👋`}
+        title={`${user?.name?.split(' ')[0]}!`}
+        subtitle={`Here's what's happening at ${user?.company || 'your company'} — ${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+      >
         <div style={{ display: 'flex', gap: 8 }}>
-          <motion.button className="btn btn-secondary" onClick={() => window.location.reload()} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+          <motion.button className="btn" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)' }} onClick={() => window.location.reload()} whileHover={{ scale: 1.02, background: 'rgba(255,255,255,0.3)' }} whileTap={{ scale: 0.97 }}>
             <RefreshCw size={15} /> Refresh
           </motion.button>
-          <motion.button className={`btn ${alertsOpen ? 'btn-danger' : 'btn-primary'}`} onClick={() => setAlertsOpen(o => !o)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+          <motion.button className={`btn`} style={{ background: alertsOpen ? 'var(--error)' : '#fff', color: alertsOpen ? '#fff' : 'var(--primary)' }} onClick={() => setAlertsOpen(o => !o)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
             <Bell size={15} /> {alertsOpen ? 'Hide Alerts' : 'Alerts'}
           </motion.button>
         </div>
-      </div>
+      </PremiumHeader>
 
       {/* Alerts panel */}
       {alertsOpen && (
