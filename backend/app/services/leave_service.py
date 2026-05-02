@@ -229,19 +229,15 @@ def payroll_review_leave(db: Session, application_id: int, reviewer_id: int,
 
 
 def _deduct_balance(db: Session, app: LeaveApplication, company_id: int):
-    policy = db.query(LeavePolicy).filter(
-        LeavePolicy.company_id == company_id,
-        LeavePolicy.leave_type == app.leave_type,
-    ).first()
-    if not policy or not policy.is_paid:
-        return
-    alloc = db.query(LeaveAllocation).filter(
+    # Find the employee's allocation for this specific leave type
+    alloc = db.query(LeaveAllocation).join(LeavePolicy).filter(
         LeaveAllocation.company_id == company_id,
         LeaveAllocation.employee_id == app.employee_id,
-        LeaveAllocation.policy_id == policy.id,
         LeaveAllocation.year == app.start_date.year,
+        LeavePolicy.leave_type == app.leave_type,
     ).first()
-    if alloc:
+    
+    if alloc and alloc.policy and alloc.policy.is_paid:
         alloc.used_days      = float(alloc.used_days) + float(app.total_days)
         alloc.remaining_days = float(alloc.remaining_days) - float(app.total_days)
 

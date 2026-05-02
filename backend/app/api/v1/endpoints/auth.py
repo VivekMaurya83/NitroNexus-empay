@@ -172,9 +172,14 @@ def refresh(p: RefreshRequest, db: Session = Depends(get_db)):
 def me(current_user: User = Depends(get_current_user)):
     employee_id = current_user.employee.id       if current_user.employee else None
     login_id    = current_user.employee.login_id if current_user.employee else None
+    name        = f"{current_user.employee.first_name} {current_user.employee.last_name}" if current_user.employee else None
+    department  = current_user.employee.department.name if current_user.employee and current_user.employee.department else None
+
     return ResponseModel(data={
         "user_id":     current_user.id,
         "email":       current_user.email,
+        "name":        name,
+        "department":  department,
         "role":        current_user.role.value,
         "company_id":  current_user.company_id,
         "is_active":   current_user.is_active,

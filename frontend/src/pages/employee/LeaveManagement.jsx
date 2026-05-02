@@ -4,13 +4,16 @@ import { Plus, X, AlertCircle, CheckCircle, XCircle, BarChart2, CalendarDays, Tr
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../context/AuthContext';
-import {
-  getLeaveRequests, applyLeave, cancelLeave,
+import { getLeaveRequests, applyLeave, cancelLeave,
   hrReviewLeave, payrollReviewLeave, getLeaveAllocations,
 } from '../../services/leaveService';
 import { getAnalytics } from '../../services/analyticsService';
 import { extractTextFromImage, parseLeaveDetailsWithAI } from '../../services/ocrService';
 import api from '../../services/api';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line
+} from 'recharts';
 
 const getLeaveTypes = () => api.get('/leaves/types');
 const createLeaveType = (data) => api.post('/leaves/policies', data);
@@ -43,6 +46,180 @@ function StackedBar({ label, approved, pending, rejected }) {
         <span style={{ color:'var(--error)' }}>✗ {rejected} rejected</span>
       </div>
     </div>
+  );
+}
+
+const PIE_COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899'];
+
+function LeaveAnalyticsTab({ analyticsData, leaves, deptF, setDeptF }) {
+  const leaveByDept = analyticsData?.leaveByDept || [];
+  const leaveFiltered = deptF === 'All' ? leaveByDept : leaveByDept.filter(d => d.dept === deptF);
+
+  // Status breakdown from real leave list
+  const statusCounts = leaves.reduce((acc, l) => {
+    acc[l.status] = (acc[l.status] || 0) + 1;
+    return acc;
+  }, {});
+  const statusPie = Object.entries(statusCounts).map(([name, value]) => ({ name, value }));
+
+  // Leave type breakdown
+  const typeMap = leaves.reduce((acc, l) => {
+    const t = l.type || l.leaveType || 'Other';
+    acc[t] = (acc[t] || 0) + 1;
+    return acc;
+  }, {});
+  const typePie = Object.entries(typeMap).map(([name, value]) => ({ name, value }));
+
+  const totalLeaves   = leaves.length;
+  const totalApproved = leaves.filter(l => l.status === 'approved').length;
+  const totalPending  = leaves.filter(l => l.status === 'pending').length;
+  const totalDays     = leaves.reduce((s, l) => s + (l.days || 0), 0);
+
+  const LABEL_MAP = { pending:'Pending', hr_approved:'HR Approved', approved:'Approved', rejected:'Rejected', cancelled:'Cancelled' };
+  const STATUS_COLORS = { pending:'#f59e0b', hr_approved:'#0ea5e9', approved:'#16a34a', rejected:'#ef4444', cancelled:'#6b7280' };
+
+  return (
+    <motion.div key="analytics" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
+      {/* Summary stat cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
+        {[
+          { label:'Total Requests',   value:totalLeaves,   color:'#6366f1', bg:'#eef2ff' },
+          { label:'Approved',          value:totalApproved, color:'#16a34a', bg:'#dcfce7' },
+          { label:'Pending Approval',  value:totalPending,  color:'#d97706', bg:'#fef3c7' },
+          { label:'Total Days Taken',  value:totalDays,     color:'#3b82f6', bg:'#dbeafe' },
+        ].map((s,i) => (
+          <motion.div key={s.label} initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:i*0.07 }}
+            style={{ background:s.bg, borderRadius:14, padding:'16px 20px', borderLeft:`4px solid ${s.color}` }}>
+            <div style={{ fontSize:30, fontWeight:800, color:s.color }}>{s.value}</div>
+            <div style={{ fontSize:12, color:'#475569', marginTop:2 }}>{s.label}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Row 1: Department bar chart + Leave type pie */}
+      <div style={{ display:'grid', gridTemplateColumns:'3fr 2fr', gap:20, marginBottom:20 }}>
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Leave by Department</div>
+              <div className="card-subtitle">Approved · Pending · Rejected per dept</div>
+            </div>
+            <select className="form-select" style={{ width:160, fontSize:13 }} value={deptF} onChange={e => setDeptF(e.target.value)}>
+              <option>All</option>
+              {leaveByDept.map(d => <option key={d.dept}>{d.dept}</option>)}
+            </select>
+          </div>
+          {leaveFiltered.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={leaveFiltered} margin={{ top:8, right:16, left:-10, bottom:0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="dept" tick={{ fontSize:12 }} />
+                <YAxis tick={{ fontSize:12 }} />
+                <Tooltip contentStyle={{ borderRadius:10, border:'none', boxShadow:'0 4px 16px rgba(0,0,0,0.1)', fontSize:13 }} />
+                <Legend wrapperStyle={{ fontSize:12 }} />
+                <Bar dataKey="approved" fill="#16a34a" radius={[4,4,0,0]} name="Approved" />
+                <Bar dataKey="pending"  fill="#f59e0b" radius={[4,4,0,0]} name="Pending" />
+                <Bar dataKey="rejected" fill="#ef4444" radius={[4,4,0,0]} name="Rejected" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ height:260, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--on-surface-variant)', flexDirection:'column', gap:8 }}>
+              <span style={{ fontSize:32, opacity:0.3 }}>📊</span>
+              <span style={{ fontSize:13 }}>No leave data by department yet</span>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Leave Type Breakdown</div>
+              <div className="card-subtitle">Distribution by type</div>
+            </div>
+          </div>
+          {typePie.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={typePie} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
+                    dataKey="value" nameKey="name" paddingAngle={3}
+                    label={({ name, percent }) => `${Math.round(percent*100)}%`}
+                    labelLine={false}>
+                    {typePie.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [v, n]} contentStyle={{ borderRadius:10, fontSize:13 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:8, justifyContent:'center', marginTop:8 }}>
+                {typePie.map((entry, idx) => (
+                  <div key={entry.name} style={{ display:'flex', alignItems:'center', gap:5, fontSize:12 }}>
+                    <div style={{ width:10, height:10, borderRadius:'50%', background:PIE_COLORS[idx % PIE_COLORS.length], flexShrink:0 }} />
+                    <span>{entry.name} ({entry.value})</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div style={{ height:200, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--on-surface-variant)', fontSize:13 }}>No data</div>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: Status breakdown + Stacked bars */}
+      <div style={{ display:'grid', gridTemplateColumns:'2fr 3fr', gap:20 }}>
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Status Overview</div>
+              <div className="card-subtitle">Request status distribution</div>
+            </div>
+          </div>
+          {statusPie.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={statusPie} cx="50%" cy="50%" outerRadius={80}
+                    dataKey="value" nameKey="name" paddingAngle={2}>
+                    {statusPie.map((entry) => (
+                      <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || '#94a3b8'} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [v, LABEL_MAP[n] || n]} contentStyle={{ borderRadius:10, fontSize:13 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:4 }}>
+                {statusPie.map(entry => (
+                  <div key={entry.name} style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ width:10, height:10, borderRadius:'50%', background:STATUS_COLORS[entry.name] || '#94a3b8' }} />
+                      <span style={{ fontSize:13 }}>{LABEL_MAP[entry.name] || entry.name}</span>
+                    </div>
+                    <span style={{ fontWeight:700, fontSize:13 }}>{entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div style={{ height:200, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--on-surface-variant)', fontSize:13 }}>No data</div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <div className="card-title">Department Distribution (Stacked)</div>
+              <div className="card-subtitle">Full proportion view per department</div>
+            </div>
+          </div>
+          <div style={{ paddingTop:8 }}>
+            {leaveFiltered.length > 0
+              ? leaveFiltered.map(d => <StackedBar key={d.dept} label={d.dept} approved={d.approved} pending={d.pending} rejected={d.rejected} />)
+              : <div style={{ color:'var(--on-surface-variant)', fontSize:13, padding:'24px 0', textAlign:'center' }}>No department data</div>
+            }
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -292,20 +469,7 @@ export default function LeaveManagement() {
             </div>
           </motion.div>
         ) : activeTab === 'analytics' ? (
-          <motion.div key="analytics" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
-            <div className="card">
-              <div className="card-header">
-                <div className="card-title">Department Leave Distribution</div>
-                <select className="form-select" style={{ width:180 }} value={deptF} onChange={e => setDeptF(e.target.value)}>
-                  <option>All</option>
-                  {analyticsData?.leaveByDept?.map(d => <option key={d.dept}>{d.dept}</option>)}
-                </select>
-              </div>
-              <div style={{ marginTop:'var(--space-4)' }}>
-                {leaveAnalytics?.map(d => <StackedBar key={d.dept} label={d.dept} approved={d.approved} pending={d.pending} rejected={d.rejected} />)}
-              </div>
-            </div>
-          </motion.div>
+          <LeaveAnalyticsTab analyticsData={analyticsData} leaves={leaves} deptF={deptF} setDeptF={setDeptF} />
         ) : (
           <motion.div key="settings" initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:-10 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--space-4)' }}>

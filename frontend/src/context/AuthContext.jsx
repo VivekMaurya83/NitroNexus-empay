@@ -79,7 +79,14 @@ export function AuthProvider({ children }) {
         // Silently verify token is still valid
         api.get('/auth/me').then(me => {
           if (me) {
-            const updated = { ...parsed, email: me.email, companyId: me.company_id, employeeId: me.employee_id };
+            const updated = { 
+              ...parsed, 
+              email: me.email, 
+              companyId: me.company_id, 
+              employeeId: me.employee_id,
+              name: me.name || parsed.name,
+              department: me.department || parsed.department
+            };
             setUser(updated);
             localStorage.setItem('empay_user', JSON.stringify(updated));
           }

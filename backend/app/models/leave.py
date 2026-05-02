@@ -42,6 +42,10 @@ class LeaveAllocation(Base):
     employee = relationship("Employee", back_populates="allocations")
     policy   = relationship("LeavePolicy", back_populates="allocations")
 
+    @property
+    def leave_type(self):
+        return self.policy.leave_type if self.policy else None
+
 
 class LeaveApplication(Base):
     __tablename__ = "leave_applications"

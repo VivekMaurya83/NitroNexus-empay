@@ -28,6 +28,7 @@ class LeaveAllocationOut(BaseModel):
     id: int
     employee_id: int
     policy_id: int
+    leave_type: Optional[LeaveType] = None
     year: int
     total_days: float
     used_days: float

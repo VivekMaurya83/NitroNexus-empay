@@ -12,11 +12,11 @@ import { leaveRequests } from '../utils/mockData';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 // ── Adapters ──────────────────────────────────────────────────────────────────
-function adaptApplication(a, employeeName = '') {
+function adaptApplication(a, empMap = {}) {
   return {
     id:                       a.id,
     employeeId:               a.employee_id,
-    employee:                 employeeName || `Employee #${a.employee_id}`,
+    employee:                 empMap[a.employee_id] || `Employee #${a.employee_id}`,
     type:                     leaveTypeLabel(a.leave_type),
     leaveType:                a.leave_type,
     from:                     a.start_date,
@@ -48,7 +48,7 @@ function adaptAllocation(a) {
     id:         a.id,
     employeeId: a.employee_id,
     policyId:   a.policy_id,
-    leaveType:  a.leave_type,
+    leaveType:  a.leave_type ? leaveTypeLabel(a.leave_type) : null,
     year:       a.year,
     allocated:  a.total_days,
     used:       a.used_days,
@@ -66,13 +66,24 @@ function leaveTypeLabel(t) {
 
 // ── Leave Applications ─────────────────────────────────────────────────────────
 export async function getLeaveRequests({ status = '', employeeId = '' } = {}) {
-  if (USE_MOCK) return leaveRequests.map(l => adaptApplication(l, l.employee));
+  if (USE_MOCK) return leaveRequests.map(l => adaptApplication({ ...l, employee_id: l.employeeId }, { [l.employeeId]: l.employee }));
   const params = new URLSearchParams({ limit:'200' });
   if (status)     params.set('status',      status);
   if (employeeId) params.set('employee_id', employeeId);
-  const data = await api.get(`/leaves/?${params}`);
+
+  // Fetch leaves + employee list in parallel to resolve names
+  const { getEmployees } = await import('./employeeService');
+  const [data, employees] = await Promise.all([
+    api.get(`/leaves/?${params}`),
+    getEmployees().catch(() => []),
+  ]);
+
+  // Build id → name lookup
+  const empMap = {};
+  employees.forEach(e => { empMap[e.employeeId] = e.name; });
+
   const list = data?.applications || data || [];
-  return list.map(a => adaptApplication(a));
+  return list.map(a => adaptApplication(a, empMap));
 }
 
 export async function applyLeave({ leaveType, fromDate, toDate, reason }) {
