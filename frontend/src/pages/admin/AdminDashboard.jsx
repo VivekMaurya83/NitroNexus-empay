@@ -72,7 +72,8 @@ export default function AdminDashboard() {
         const active = empList.filter(e => e.status === 'active');
         setEmployees(empList);
 
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         const attData = await api.get(`/attendance/?date=${today}&limit=100`).catch(() => null);
         if (!cancelled) {
           const attList = attData?.records || attData || [];

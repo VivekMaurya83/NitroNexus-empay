@@ -45,11 +45,23 @@ function adaptSummary(s) {
 }
 
 // ── Clock In ──────────────────────────────────────────────────────────────────
+/** Returns a local ISO-8601 string with timezone offset (e.g. "2026-05-03T03:03:00+05:30")
+ *  This prevents UTC date-shift bugs where midnight IST is still "yesterday" in UTC. */
+function localISOString(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const offset = -d.getTimezoneOffset(); // minutes, positive for east
+  const sign   = offset >= 0 ? '+' : '-';
+  const hh     = pad(Math.floor(Math.abs(offset) / 60));
+  const mm     = pad(Math.abs(offset) % 60);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T` +
+         `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${hh}:${mm}`;
+}
+
 export async function clockIn(employeeId) {
   if (USE_MOCK) return { id: Date.now(), checkIn: new Date().toLocaleTimeString() };
   const data = await api.post('/attendance/check-in', {
     employee_id: employeeId,
-    check_in:    new Date().toISOString(),
+    check_in:    localISOString(),
   });
   return { ...adaptRecord(data), attendanceId: data.id };
 }
@@ -58,7 +70,7 @@ export async function clockIn(employeeId) {
 export async function clockOut(attendanceId) {
   if (USE_MOCK) return { checkOut: new Date().toLocaleTimeString() };
   const data = await api.patch(`/attendance/${attendanceId}/check-out`, {
-    check_out: new Date().toISOString(),
+    check_out: localISOString(),
   });
   return adaptRecord(data);
 }

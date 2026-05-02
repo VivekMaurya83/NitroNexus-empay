@@ -47,7 +47,8 @@ export async function extractTextFromImage(file) {
  * @returns {Promise<{leaveType, fromDate, toDate, reason, daysInfo}>}
  */
 export async function parseLeaveDetailsWithAI(ocrText) {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
   const prompt = `You are an HR assistant parsing a medical certificate or leave application document.
 

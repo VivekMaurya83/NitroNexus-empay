@@ -35,7 +35,8 @@ export default function AttendanceTracker() {
       getMyTodayRecord().then(r => setTodayRecord(r));
       getMonthlySummary(user.employeeId, now.getMonth()+1, now.getFullYear()).then(setMySummary);
       const start = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-      getAttendanceRange(user.employeeId, start, now.toISOString().slice(0,10)).then(setMyLogs);
+      const localDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      getAttendanceRange(user.employeeId, start, localDateStr).then(setMyLogs);
     } else {
       getTodayStatusBoard().then(setAllLogs);
     }
