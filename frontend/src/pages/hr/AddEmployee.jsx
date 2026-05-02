@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { UserPlus, ChevronLeft, Check, Mail, User, Building2, Calendar, Briefcase, Save } from 'lucide-react';
+import { UserPlus, ChevronLeft, Check, Mail, User, Building2, Calendar, Briefcase, Save, Upload, Loader2, Users } from 'lucide-react';
 import { getDepartments, getEmployee, updateEmployee } from '../../services/employeeService';
 import { inviteEmployee } from '../../services/adminService';
+import { parseCSVWithGroq } from '../../services/ocrService';
 
 const EMPLOYMENT_TYPES = [
   { value: 'full_time',  label: 'Full Time' },
@@ -31,6 +32,9 @@ export default function AddEmployee() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null); // { login_id, email }
+  const [uploadMode, setUploadMode] = useState('manual');
+  const [bulkState, setBulkState] = useState('idle'); // idle, processing, done
+  const [bulkResults, setBulkResults] = useState([]);
 
   useEffect(() => {
     getDepartments().then(data => setDepts(data || [])).catch(() => {});
@@ -75,6 +79,71 @@ export default function AddEmployee() {
       setError(err.message || `Failed to ${isEdit ? 'update' : 'create'} employee. Please try again.`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBulkUpload = async (file) => {
+    if (!file) return;
+    
+    // Validate file type
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      setError('Excel files (.xlsx/.xls) are not supported directly. Please save your file as a .CSV and upload again.');
+      return;
+    }
+
+    setBulkState('processing');
+    setError('');
+    setBulkResults([]);
+
+    try {
+      const text = await file.text();
+      // AI Parsing
+      const parsedEmployees = await parseCSVWithGroq(text, depts);
+
+      if (!parsedEmployees || parsedEmployees.length === 0) {
+        throw new Error("No employees found in CSV.");
+      }
+
+      // Validation & Creation (Sequential to avoid backend race conditions on ID generation)
+      const formattedResults = [];
+      
+      for (const emp of parsedEmployees) {
+        try {
+          if (!emp.first_name || !emp.last_name || !emp.email || !emp.date_of_joining) {
+            throw new Error("Missing required fields (First, Last, Email, Join Date)");
+          }
+          
+          const payload = {
+            first_name: emp.first_name,
+            last_name: emp.last_name,
+            email: emp.email,
+            date_of_joining: emp.date_of_joining,
+            employment_type: emp.employment_type || 'full_time',
+            phone: emp.phone || null,
+            date_of_birth: emp.date_of_birth || null,
+            department_id: emp.department_id || null,
+          };
+
+          const res = await inviteEmployee(payload);
+          formattedResults.push({
+            emp: payload,
+            status: 'success',
+            login_id: res?.login_id || res?.data?.login_id
+          });
+        } catch (err) {
+          formattedResults.push({
+            emp,
+            status: 'error',
+            error: err?.response?.data?.detail || err?.message || 'Failed'
+          });
+        }
+      }
+
+      setBulkResults(formattedResults);
+      setBulkState('done');
+    } catch (err) {
+      setError(err.message || 'Failed to process CSV file.');
+      setBulkState('idle');
     }
   };
 
@@ -129,6 +198,70 @@ export default function AddEmployee() {
         </div>
       </div>
 
+      {!isEdit && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <button type="button" className={`btn ${uploadMode === 'manual' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setUploadMode('manual')}><User size={16} /> Manual Entry</button>
+          <button type="button" className={`btn ${uploadMode === 'bulk' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setUploadMode('bulk')}><Users size={16} /> Bulk Upload (AI)</button>
+        </div>
+      )}
+
+      {uploadMode === 'bulk' ? (
+        <motion.div className="card" style={{ padding: 30 }} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          {bulkState === 'idle' && (
+            <div 
+               style={{ border: '2px dashed var(--outline)', borderRadius: 12, padding: '60px 40px', textAlign: 'center', cursor: 'pointer', background: 'var(--surface)' }}
+               onDragOver={e => e.preventDefault()}
+               onDrop={e => { e.preventDefault(); handleBulkUpload(e.dataTransfer.files[0]); }}
+               onClick={() => document.getElementById('csv-upload').click()}
+            >
+              <Upload size={36} style={{ color: 'var(--on-surface-variant)', marginBottom: 12 }} />
+              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 16 }}>Drag & drop CSV or Excel file</div>
+              <div style={{ fontSize: 13, color: 'var(--on-surface-variant)' }}>Up to 10 employees at once. Unstructured columns are automatically matched.</div>
+              <input id="csv-upload" type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={e => handleBulkUpload(e.target.files[0])} />
+            </div>
+          )}
+
+          {bulkState === 'processing' && (
+            <div style={{ textAlign: 'center', padding: '60px 40px' }}>
+              <Loader2 size={36} className="spin" style={{ color: 'var(--primary)', marginBottom: 16 }} />
+              <div style={{ fontWeight: 600, fontSize: 16 }}>Processing Document with AI...</div>
+              <div style={{ fontSize: 13, color: 'var(--on-surface-variant)', marginTop: 4 }}>Extracting rows, mapping departments, validating, and creating accounts.</div>
+            </div>
+          )}
+
+          {bulkState === 'done' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h3 style={{ marginBottom: 0 }}>Import Results</h3>
+                <div style={{ fontSize: 13, color: 'var(--on-surface-variant)' }}>
+                  {bulkResults.filter(r => r.status === 'success').length} / {bulkResults.length} Created
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {bulkResults.map((r, i) => (
+                  <div key={i} style={{ padding: 16, background: r.status === 'success' ? 'rgba(16,185,129,.05)' : 'rgba(239,68,68,.05)', border: `1px solid ${r.status === 'success' ? 'rgba(16,185,129,.2)' : 'rgba(239,68,68,.2)'}`, borderRadius: 8 }}>
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {r.status === 'success' ? <Check size={16} color="#10b981" /> : <ChevronLeft size={16} color="#ef4444" style={{ transform: 'rotate(180deg)' }} />}
+                      {r.emp.first_name || 'Unknown'} {r.emp.last_name || ''} <span style={{ fontWeight: 400, color: 'var(--on-surface-variant)' }}>({r.emp.email || 'No email'})</span>
+                    </div>
+                    {r.status === 'success' ? (
+                      <div style={{ color: '#10b981', fontSize: 13, marginTop: 4, paddingLeft: 24 }}>Successfully created! Login ID: <strong>{r.login_id}</strong></div>
+                    ) : (
+                      <div style={{ color: '#ef4444', fontSize: 13, marginTop: 4, paddingLeft: 24 }}>Error: {r.error}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+                <button className="btn btn-primary" onClick={() => setBulkState('idle')}>Upload Another File</button>
+                <Link to="/hr-directory" className="btn btn-secondary">View Directory</Link>
+              </div>
+            </div>
+          )}
+
+          {error && <div style={{ color: 'var(--error)', marginTop: 16, padding: '10px 14px', background: 'var(--error-container)', borderRadius: 8, fontSize: 'var(--font-size-sm)' }}>{error}</div>}
+        </motion.div>
+      ) : (
       <motion.form onSubmit={submit} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
 
@@ -238,6 +371,7 @@ export default function AddEmployee() {
           </motion.button>
         </div>
       </motion.form>
+      )}
     </div>
   );
 }
