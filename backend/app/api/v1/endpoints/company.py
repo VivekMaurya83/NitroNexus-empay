@@ -138,3 +138,24 @@ def onboarding_status(
         "has_payroll_rules": has_payroll_rules,
         "complete": complete,
     })
+
+
+@router.get("/me/users", response_model=ResponseModel)
+def list_company_users(db: Session = Depends(get_db),
+                       cu: User = Depends(require_admin)):
+    users = db.query(User).filter(User.company_id == cu.company_id).all()
+    res = []
+    for u in users:
+        emp = u.employee
+        res.append({
+            "user_id": u.id,
+            "email": u.email,
+            "role": u.role.value,
+            "is_active": u.is_active,
+            "name": f"{emp.first_name} {emp.last_name}" if emp else u.email.split('@')[0],
+            "employee_id": emp.id if emp else None,
+            "employee_code": emp.employee_code if emp else None,
+            "department": emp.department.name if emp and emp.department else "Staff",
+            "last_login": str(u.last_login) if u.last_login else None
+        })
+    return ResponseModel(data=res)

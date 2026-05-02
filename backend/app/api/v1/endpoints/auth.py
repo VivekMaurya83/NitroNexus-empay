@@ -225,11 +225,17 @@ def deactivate_user(
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
     user.is_active = False
+    
+    # Also terminate employee profile if exists
+    if user.employee:
+        from app.models.enums import EmploymentStatus
+        user.employee.employment_status = EmploymentStatus.TERMINATED
+        
     db.commit()
     log_action(db, current_user.id, "deactivate_user", "User",
-               user_id, f"Deactivated: {user.email}",
+               user_id, f"Deactivated/Terminated: {user.email}",
                company_id=current_user.company_id)
-    return ResponseModel(message=f"User {user.email} deactivated")
+    return ResponseModel(message=f"User {user.email} deactivated and terminated")
 
 
 # ── Invite HR Officer (Admin only) ────────────────────────────────────────────
