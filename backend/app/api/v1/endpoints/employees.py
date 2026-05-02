@@ -51,7 +51,34 @@ def list_departments(db: Session = Depends(get_db),
     depts = (db.query(Department)
                .filter(Department.company_id == cu.company_id)
                .order_by(Department.name).all())
-    return ResponseModel(data=[DepartmentOut.model_validate(d) for d in depts])
+    
+    # Simple count for each department
+    results = []
+    for d in depts:
+        d_out = DepartmentOut.model_validate(d)
+        d_out.headcount_actual = db.query(Employee).filter(Employee.department_id == d.id).count()
+        results.append(d_out)
+        
+    return ResponseModel(data=results)
+
+
+@router.delete("/departments/{dept_id}", response_model=ResponseModel)
+def delete_department(dept_id: int, db: Session = Depends(get_db),
+                      cu: User = Depends(require_hr)):
+    dept = db.query(Department).filter(
+        Department.id == dept_id,
+        Department.company_id == cu.company_id,
+    ).first()
+    if not dept:
+        raise HTTPException(404, "Department not found")
+    # Check if employees are assigned to this department
+    if db.query(Employee).filter(Employee.department_id == dept_id).first():
+        raise HTTPException(400, "Cannot delete department with active employees")
+    db.delete(dept)
+    db.commit()
+    log_action(db, cu.id, "delete_department", "Department", dept_id,
+               f"Deleted: {dept.name}", company_id=cu.company_id)
+    return ResponseModel(message="Department deleted")
 
 
 # ── Designations ──────────────────────────────────────────────────────────────
@@ -76,6 +103,25 @@ def list_designations(db: Session = Depends(get_db),
                 .filter(Designation.company_id == cu.company_id)
                 .order_by(Designation.title).all())
     return ResponseModel(data=[DesignationOut.model_validate(d) for d in desigs])
+
+
+@router.delete("/designations/{desig_id}", response_model=ResponseModel)
+def delete_designation(desig_id: int, db: Session = Depends(get_db),
+                       cu: User = Depends(require_hr)):
+    des = db.query(Designation).filter(
+        Designation.id == desig_id,
+        Designation.company_id == cu.company_id,
+    ).first()
+    if not des:
+        raise HTTPException(404, "Designation not found")
+    # Check if employees are assigned
+    if db.query(Employee).filter(Employee.designation_id == desig_id).first():
+        raise HTTPException(400, "Cannot delete designation with active employees")
+    db.delete(des)
+    db.commit()
+    log_action(db, cu.id, "delete_designation", "Designation", desig_id,
+               f"Deleted: {des.title}", company_id=cu.company_id)
+    return ResponseModel(message="Designation deleted")
 
 
 # ── Employees ─────────────────────────────────────────────────────────────────

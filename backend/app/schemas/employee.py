@@ -17,6 +17,7 @@ class DepartmentOut(BaseModel):
     description: Optional[str] = None
     manager_name: Optional[str] = None
     headcount: Optional[int] = None
+    headcount_actual: Optional[int] = 0
     model_config = {"from_attributes": True}
 
 

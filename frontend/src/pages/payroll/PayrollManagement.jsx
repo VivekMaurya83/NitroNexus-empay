@@ -5,6 +5,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../context/AuthContext';
 import { getPayruns, runPayroll, getPayslipsForRun } from '../../services/payrollService';
+import { invitePayroll } from '../../services/adminService';
 
 const INR = (v) => `₹${Number(v||0).toLocaleString('en-IN')}`;
 const MONTHS = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -22,6 +23,26 @@ export default function PayrollManagement() {
   const [expanded,  setExpanded]  = useState(null); // payrun id
   const [payslips,  setPayslips]  = useState([]);
   const [slipsLoading, setSlipsLoading] = useState(false);
+
+  const [showInvitePayroll, setShowInvitePayroll] = useState(false);
+  const [poForm, setPoForm] = useState({ name: '', email: '' });
+  const [invitingPO, setInvitingPO] = useState(false);
+  const [poError, setPoError] = useState('');
+
+  const handleInvitePayroll = async (e) => {
+    e.preventDefault();
+    setInvitingPO(true); setPoError('');
+    try {
+      await invitePayroll(poForm);
+      setShowInvitePayroll(false);
+      setPoForm({ name: '', email: '' });
+      load();
+    } catch (err) {
+      setPoError(err.message || 'Failed to invite Payroll Officer');
+    } finally {
+      setInvitingPO(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -62,7 +83,44 @@ export default function PayrollManagement() {
             <Play size={16}/> Run Payroll
           </motion.button>
         )}
+        {user?.role === ROLES.ADMIN && (
+          <motion.button className="btn btn-secondary" onClick={()=>setShowInvitePayroll(true)} whileHover={{ scale:1.02 }}>
+            <Users size={16}/> Invite Payroll Officer
+          </motion.button>
+        )}
       </div>
+
+      {/* Invite Payroll Modal */}
+      <AnimatePresence>
+        {showInvitePayroll && (
+          <motion.div className="modal-overlay" initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} onClick={()=>setShowInvitePayroll(false)}>
+            <motion.div className="modal-content" initial={{ scale:0.9 }} animate={{ scale:1 }} exit={{ scale:0.9 }} onClick={e=>e.stopPropagation()} style={{ maxWidth:400 }}>
+              <div className="modal-header">
+                <h3 className="modal-title"><Users size={16}/> Invite Payroll Officer</h3>
+                <button className="btn btn-icon btn-ghost" onClick={()=>setShowInvitePayroll(false)}><X size={18}/></button>
+              </div>
+              <form onSubmit={handleInvitePayroll} className="modal-body" style={{ display:'flex', flexDirection:'column', gap:'var(--space-4)' }}>
+                <p style={{ fontSize:'var(--font-size-sm)', color:'var(--on-surface-variant)' }}>
+                  Invite a Payroll Officer. Note: Only one Payroll Officer is allowed per organization.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Full Name *</label>
+                  <input className="form-input" value={poForm.name} onChange={e=>setPoForm(f=>({...f, name:e.target.value}))} placeholder="e.g. Amit Joshi" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email Address *</label>
+                  <input className="form-input" type="email" value={poForm.email} onChange={e=>setPoForm(f=>({...f, email:e.target.value}))} placeholder="payroll@company.com" required />
+                </div>
+                {poError && <div style={{ color:'var(--error)', fontSize:'var(--font-size-sm)', padding:'8px 12px', background:'var(--error-container)', borderRadius:8 }}>{poError}</div>}
+                <div style={{ display:'flex', gap:'var(--space-3)', justifyContent:'flex-end' }}>
+                  <button type="button" className="btn btn-secondary" onClick={()=>setShowInvitePayroll(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={invitingPO}>{invitingPO ? 'Inviting…' : 'Send Invite'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Latest payrun stats */}
       {latest && (

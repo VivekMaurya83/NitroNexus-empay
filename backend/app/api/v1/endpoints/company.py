@@ -45,6 +45,41 @@ def my_company(db: Session = Depends(get_db),
     return ResponseModel(data=CompanyOut.model_validate(company))
 
 
+@router.patch("/me", response_model=ResponseModel)
+def update_my_company(p: CompanyUpdate,
+                      db: Session = Depends(get_db),
+                      cu: User = Depends(require_admin)):
+    print(f"DEBUG: update_my_company payload: {p.model_dump()}")
+    if not cu.company_id:
+        raise HTTPException(404, "No company associated with your account")
+    company = db.query(Company).filter(Company.id == cu.company_id).first()
+    if not company:
+        raise HTTPException(404, "Company not found")
+    updates = p.model_dump(exclude_none=True)
+    for field, value in updates.items():
+        setattr(company, field, value)
+    db.commit()
+    db.refresh(company)
+    log_action(db, cu.id, "update_company", "Company", company.id,
+               f"Updated: {list(updates.keys())}", company_id=company.id)
+    return ResponseModel(data=CompanyOut.model_validate(company))
+
+
+@router.post("/me/complete-onboarding", response_model=ResponseModel)
+def complete_onboarding(db: Session = Depends(get_db),
+                        cu: User = Depends(require_admin)):
+    if not cu.company_id:
+        raise HTTPException(404, "No company associated with your account")
+    company = db.query(Company).filter(Company.id == cu.company_id).first()
+    if not company:
+        raise HTTPException(404, "Company not found")
+    company.onboarding_completed = True
+    db.commit()
+    log_action(db, cu.id, "complete_onboarding", "Company", company.id,
+               "Onboarding marked as complete", company_id=company.id)
+    return ResponseModel(message="Onboarding completed")
+
+
 @router.patch("/{company_id}", response_model=ResponseModel)
 def update_company(company_id: int, p: CompanyUpdate,
                    db: Session = Depends(get_db),
@@ -68,6 +103,9 @@ def onboarding_status(
     cu: User = Depends(require_admin),
 ):
     """Returns what the Admin has completed in the first-time setup wizard."""
+    company = db.query(Company).filter(Company.id == cu.company_id).first()
+    if not company:
+        raise HTTPException(404, "Company not found")
     from app.models.enums import UserRole
 
     has_hr = db.query(User).filter(
@@ -92,7 +130,7 @@ def onboarding_status(
     except Exception:
         has_payroll_rules = False  # table may not exist yet
 
-    complete = has_hr and has_payroll and has_payroll_rules
+    complete = company.onboarding_completed or (has_hr and has_payroll and has_payroll_rules)
 
     return ResponseModel(data={
         "has_hr": has_hr,

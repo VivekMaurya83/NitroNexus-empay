@@ -5,6 +5,7 @@ import {
   Users, Calculator, DollarSign, Check, ChevronRight,
   Mail, User, Shield, Percent, IndianRupee, ArrowRight
 } from 'lucide-react';
+import api from '../../services/api';
 import { inviteHR, invitePayroll, savePayrollConfig } from '../../services/adminService';
 
 const WIZARD_STEPS = [
@@ -85,11 +86,9 @@ function InviteHRStep({ onDone }) {
           <motion.button type="submit" className="btn btn-secondary" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={loading}>
             {loading ? 'Inviting…' : '+ Send Invite'}
           </motion.button>
-          {invites.length > 0 && (
-            <motion.button type="button" className="btn btn-primary" onClick={onDone} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              Continue <ChevronRight size={15} />
-            </motion.button>
-          )}
+          <motion.button type="button" className="btn btn-ghost" onClick={onDone} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            {invites.length > 0 ? 'Continue' : 'Skip for now'} <ChevronRight size={15} />
+          </motion.button>
         </div>
       </form>
     </div>
@@ -163,9 +162,14 @@ function InvitePayrollStep({ onDone }) {
               </motion.div>
             )}
           </AnimatePresence>
-          <motion.button type="submit" className="btn btn-primary" style={{ marginTop: 4 }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={loading}>
-            {loading ? 'Inviting…' : 'Send Invite'}
-          </motion.button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <motion.button type="submit" className="btn btn-primary" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={loading}>
+              {loading ? 'Inviting…' : 'Send Invite'}
+            </motion.button>
+            <motion.button type="button" className="btn btn-ghost" onClick={onDone} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              Skip for now <ChevronRight size={15} />
+            </motion.button>
+          </div>
         </form>
       )}
     </div>
@@ -271,10 +275,15 @@ export default function AdminSetup() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
 
-  const next = () => {
+  const next = async () => {
     if (currentStep < WIZARD_STEPS.length - 1) {
       setCurrentStep(s => s + 1);
     } else {
+      try {
+        await api.post('/companies/me/complete-onboarding');
+      } catch (e) {
+        console.error('Failed to mark onboarding as complete', e);
+      }
       navigate('/dashboard');
     }
   };

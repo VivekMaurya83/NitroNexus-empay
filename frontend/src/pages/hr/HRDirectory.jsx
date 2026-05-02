@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { Search, UserPlus, Eye, Edit, Trash2, Phone, RefreshCw, Building2 } from 'lucide-react';
+import { Search, UserPlus, Eye, Edit, Trash2, Phone, RefreshCw, Building2, X } from 'lucide-react';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth, ROLES } from '../../context/AuthContext';
 import { getEmployees, getDepartments } from '../../services/employeeService';
+import { inviteHR } from '../../services/adminService';
+import { AnimatePresence } from 'motion/react';
 
 const STATUS_FILTERS = ['All', 'active', 'inactive', 'terminated'];
 
@@ -20,6 +22,26 @@ export default function HRDirectory() {
   const [depts,     setDepts]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
+
+  const [showInviteHR, setShowInviteHR] = useState(false);
+  const [hrForm, setHrForm] = useState({ name: '', email: '' });
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+
+  const handleInviteHR = async (e) => {
+    e.preventDefault();
+    setInviting(true); setInviteError('');
+    try {
+      await inviteHR(hrForm);
+      setShowInviteHR(false);
+      setHrForm({ name: '', email: '' });
+      load();
+    } catch (err) {
+      setInviteError(err.message || 'Failed to invite HR Officer');
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,8 +79,45 @@ export default function HRDirectory() {
           <Link to="/hr/add-employee" className="btn btn-primary">
             <UserPlus size={16} /> Add Employee
           </Link>
+          {isAdmin && (
+            <motion.button className="btn btn-secondary" onClick={() => setShowInviteHR(true)} whileHover={{ scale: 1.02 }}>
+              <Building2 size={16} /> Invite HR Officer
+            </motion.button>
+          )}
         </div>
       </div>
+
+      {/* Invite HR Modal */}
+      <AnimatePresence>
+        {showInviteHR && (
+          <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowInviteHR(false)}>
+            <motion.div className="modal-content" initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+              <div className="modal-header">
+                <h3 className="modal-title"><Building2 size={16} /> Invite HR Officer</h3>
+                <button className="btn btn-icon btn-ghost" onClick={() => setShowInviteHR(false)}><X size={18} /></button>
+              </div>
+              <form onSubmit={handleInviteHR} className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--on-surface-variant)' }}>
+                  Invite a new HR Officer. They will receive a temporary password via email.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">Full Name *</label>
+                  <input className="form-input" value={hrForm.name} onChange={e => setHrForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Riya Sharma" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email Address *</label>
+                  <input className="form-input" type="email" value={hrForm.email} onChange={e => setHrForm(f => ({ ...f, email: e.target.value }))} placeholder="hr@company.com" required />
+                </div>
+                {inviteError && <div style={{ color: 'var(--error)', fontSize: 'var(--font-size-sm)', padding: '8px 12px', background: 'var(--error-container)', borderRadius: 8 }}>{inviteError}</div>}
+                <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowInviteHR(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={inviting}>{inviting ? 'Inviting…' : 'Send Invite'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Filters */}
       <div className="filter-bar" style={{ marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: 10 }}>

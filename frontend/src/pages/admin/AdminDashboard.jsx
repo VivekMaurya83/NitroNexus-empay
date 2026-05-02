@@ -25,11 +25,20 @@ export default function AdminDashboard() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      // Check onboarding first
+      try {
+        const status = await api.get('/companies/me/onboarding-status');
+        if (!status.complete && !cancelled) {
+          navigate('/admin/setup');
+          return;
+        }
+      } catch (e) { console.warn('Onboarding check failed', e); }
+
       setLoading(true);
       try {
         const [empData, leaveData, payrunData] = await Promise.all([
           api.get('/employees/?limit=200').catch(() => null),
-          api.get('/leaves/requests?limit=20').catch(() => null),
+          api.get('/leaves/?limit=20').catch(() => null),
           api.get('/payroll/runs').catch(() => null),
         ]);
 
