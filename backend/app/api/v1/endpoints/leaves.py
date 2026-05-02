@@ -138,6 +138,21 @@ def list_leave_applications(
     })
 
 
+@router.get("/types", response_model=ResponseModel)
+def get_leave_types(db: Session = Depends(get_db),
+                    cu: User = Depends(get_current_user)):
+    # Return both the enum values and the existing policies
+    from app.models.enums import LeaveType
+    types = [t.value for t in LeaveType]
+    policies = db.query(LeavePolicy).filter(
+        LeavePolicy.company_id == cu.company_id
+    ).all()
+    return ResponseModel(data={
+        "available_types": types,
+        "policies": [LeavePolicyOut.model_validate(p) for p in policies]
+    })
+
+
 @router.get("/{application_id}", response_model=ResponseModel)
 def get_leave_application(application_id: int, db: Session = Depends(get_db),
                            cu: User = Depends(get_current_user)):

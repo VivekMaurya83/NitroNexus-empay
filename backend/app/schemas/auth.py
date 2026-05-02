@@ -11,6 +11,7 @@ class RegisterRequest(BaseModel):
     # Omit company_id only when registering as Admin to auto-create a new company.
     # All other roles must supply a valid company_id.
     company_id: Optional[int] = None
+    strength: Optional[str] = None
 
 
 class LoginRequest(BaseModel):

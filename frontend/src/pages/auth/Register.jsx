@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, Mail, Lock, Building2, Check, ChevronRight } from 'lucide-react';
+import { DollarSign, Mail, Lock, Building2, Check, ChevronRight, Users } from 'lucide-react';
 import { useAuth, ROLES } from '../../context/AuthContext';
 import './Auth.css';
 
@@ -19,6 +19,7 @@ export default function Register() {
     email: '',
     password: '',
     confirmPassword: '',
+    strength: '1-10',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,6 +46,7 @@ export default function Register() {
         password: form.password,
         role: ROLES.ADMIN,
         company_name: form.companyName.trim(),
+        strength: form.strength,
       });
       await login(form.email, form.password);
       navigate('/admin/setup');
@@ -115,6 +117,20 @@ export default function Register() {
                 </div>
                 <div className="form-hint" style={{ marginTop: 6 }}>
                   This name will be used to generate employee Login IDs (e.g. <strong>OI</strong>JODO20220001)
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Strength of the Organisation *</label>
+                <div className="input-icon-wrap">
+                  <Users size={16} className="input-icon" />
+                  <select name="strength" value={form.strength} onChange={handle} className="form-select with-icon" required>
+                    <option value="1-10">1 - 10 Employees</option>
+                    <option value="11-50">11 - 50 Employees</option>
+                    <option value="51-200">51 - 200 Employees</option>
+                    <option value="201-500">201 - 500 Employees</option>
+                    <option value="500+">500+ Employees</option>
+                  </select>
                 </div>
               </div>
 

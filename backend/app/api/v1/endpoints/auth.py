@@ -68,7 +68,7 @@ def register(p: RegisterRequest, db: Session = Depends(get_db)):
         # Use provided company_name or derive from email
         raw_name = (p.company_name or "").strip() or f"{p.email.split('@')[0]}'s Organisation"
         co_code  = company_short_code(raw_name)
-        new_company = Company(name=raw_name, short_code=co_code)
+        new_company = Company(name=raw_name, short_code=co_code, strength=p.strength)
         db.add(new_company)
         db.flush()
         company_id = new_company.id

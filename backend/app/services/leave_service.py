@@ -8,6 +8,8 @@ from app.models.enums import LeaveStatus, PayrunStatus
 from app.schemas.leave import LeaveApplicationCreate, LeaveReviewAction
 from app.services.whatsapp_service import send_whatsapp_message
 from app.services.email_service import send_leave_status_email
+from app.models.employee import Employee
+from app.services import email_service
 
 
 def _count_days(start: date, end: date) -> float:
@@ -44,7 +46,6 @@ def apply_leave(db: Session, employee_id: int,
     db.add(app)
     db.commit()
     db.refresh(app)
-    
     if app.employee and app.employee.phone:
         leave_name = app.leave_type.value.replace('_', ' ').title()
         msg = (
@@ -58,6 +59,19 @@ def apply_leave(db: Session, employee_id: int,
         )
         send_whatsapp_message(app.employee.phone, msg)
         
+    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    if emp and emp.user:
+        try:
+            email_service.send_leave_application_email(
+                to=emp.user.email,
+                name=f"{emp.first_name} {emp.last_name}",
+                leave_type=p.leave_type.value.replace("_", " ").title(),
+                from_date=str(p.start_date),
+                to_date=str(p.end_date),
+                days=float(total),
+            )
+        except Exception:
+            pass
     return app
 
 
