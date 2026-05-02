@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   z-index: var(--z-sidebar);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 2px 0 12px rgba(0,0,0,0.15);
 }
 

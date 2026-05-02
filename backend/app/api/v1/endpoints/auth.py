@@ -208,10 +208,10 @@ def change_password(
     return ResponseModel(message="Password changed successfully")
 
 
-# ── Deactivate user ───────────────────────────────────────────────────────────
+# ── Delete user ───────────────────────────────────────────────────────────
 
-@router.delete("/users/{user_id}/deactivate", response_model=ResponseModel)
-def deactivate_user(
+@router.delete("/users/{user_id}", response_model=ResponseModel)
+def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -224,18 +224,18 @@ def deactivate_user(
     ).first()
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
-    user.is_active = False
     
-    # Also terminate employee profile if exists
+    # Terminate and delete employee profile if exists
     if user.employee:
-        from app.models.enums import EmploymentStatus
-        user.employee.employment_status = EmploymentStatus.TERMINATED
+        db.delete(user.employee)
+        
+    db.delete(user)
         
     db.commit()
-    log_action(db, current_user.id, "deactivate_user", "User",
-               user_id, f"Deactivated/Terminated: {user.email}",
+    log_action(db, current_user.id, "delete_user", "User",
+               user_id, f"Deleted: {user.email}",
                company_id=current_user.company_id)
-    return ResponseModel(message=f"User {user.email} deactivated and terminated")
+    return ResponseModel(message=f"User {user.email} deleted")
 
 
 # ── Invite HR Officer (Admin only) ────────────────────────────────────────────

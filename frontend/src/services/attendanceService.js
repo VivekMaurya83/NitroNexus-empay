@@ -4,6 +4,7 @@
  * Endpoint prefix: /attendance
  */
 import api from './api';
+import { getEmployees } from './employeeService';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
@@ -70,14 +71,24 @@ export async function manualEntry(payload) {
 }
 
 // ── Today's status board ───────────────────────────────────────────────────────
-export async function getTodayStatusBoard(allEmployees = []) {
+export async function getTodayStatusBoard(allEmployees = null) {
   if (USE_MOCK) return todayAttendance;
   const records = await api.get('/attendance/today');
   // records is an array for HR/Admin, single record or null for Employee
   const list = Array.isArray(records) ? records : (records ? [records] : []);
-  // Merge attendance records with employee names from allEmployees array
+  
+  let emps = allEmployees;
+  if (!emps) {
+    try {
+      emps = await getEmployees();
+    } catch {
+      emps = [];
+    }
+  }
+
+  // Merge attendance records with employee names from emps array
   return list.map(r => {
-    const emp = allEmployees.find(e => e.employeeId === r.employee_id) || {};
+    const emp = emps.find(e => e.employeeId === r.employee_id) || {};
     return {
       employeeId:  r.employee_id,
       name:        emp.name         || `Employee #${r.employee_id}`,

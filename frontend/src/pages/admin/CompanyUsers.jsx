@@ -5,7 +5,7 @@ import {
   Search, Mail, Shield, Clock, X, AlertTriangle, Save
 } from 'lucide-react';
 import { useAuth, ROLES } from '../../context/AuthContext';
-import { getCompanyUsers, deactivateUser, inviteHR, invitePayroll } from '../../services/adminService';
+import { getCompanyUsers, deleteUser, inviteHR, invitePayroll } from '../../services/adminService';
 import { getPayrollRules, updatePayrollRules } from '../../services/payrollService';
 import StatusBadge from '../../components/ui/StatusBadge';
 
@@ -67,13 +67,13 @@ export default function CompanyUsers() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleDeactivate = async (uId, email) => {
-    if (!window.confirm(`Are you sure you want to terminate access for ${email}? This will also mark their employment status as TERMINATED.`)) return;
+  const handleDelete = async (uId, email) => {
+    if (!window.confirm(`Are you sure you want to completely delete access for ${email}? This cannot be undone.`)) return;
     try {
-      await deactivateUser(uId);
+      await deleteUser(uId);
       loadData();
     } catch (err) {
-      alert(err.message || 'Failed to deactivate user');
+      alert(err.message || 'Failed to delete user');
     }
   };
 
@@ -192,8 +192,8 @@ export default function CompanyUsers() {
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           {isAdmin && u.role !== 'admin' && u.is_active && (
-                            <button className="btn btn-sm btn-ghost" style={{ color:'var(--error)' }} onClick={() => handleDeactivate(u.user_id, u.email)} title="Terminate Access">
-                              <Trash2 size={14} /> Terminate
+                            <button className="btn btn-sm btn-ghost" style={{ color:'var(--error)' }} onClick={() => handleDelete(u.user_id, u.email)} title="Delete Access">
+                              <Trash2 size={14} /> Delete
                             </button>
                           )}
                         </td>
