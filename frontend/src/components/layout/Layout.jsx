@@ -1,43 +1,49 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
-import { currentUser } from '../../utils/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { ROLES, systemAlerts } from '../../utils/mockData';
 
-const pageTitles = {
-  '/dashboard': 'Dashboard',
-  '/employee-portal': 'Employee Portal',
-  '/hr-directory': 'HR Directory',
-  '/attendance': 'Attendance',
-  '/leave': 'Leave Management',
-  '/payroll': 'Payroll',
-  '/payroll/salary-structure': 'Salary Structure',
-  '/payslip': 'Payslip',
-  '/profile': 'My Profile',
-  '/admin/settings': 'Settings',
-  '/admin/configurations': 'Configurations',
-  '/hr/add-employee': 'Add Employee',
-  '/hr/leave-allocation': 'Leave Allocation',
+const PAGE_TITLES = {
+  '/dashboard':                 'Dashboard',
+  '/status-board':              'Employee Status Board',
+  '/employee-portal':           'My Portal',
+  '/hr-directory':              'HR Directory',
+  '/hr/add-employee':           'Add Employee',
+  '/hr/leave-allocation':       'Leave Allocation',
+  '/attendance':                'Attendance',
+  '/leave':                     'Leave Management',
+  '/payroll':                   'Payroll',
+  '/payroll/salary-structure':  'Salary Structure',
+  '/payslip':                   'Payslip',
+  '/analytics':                 'Analytics',
+  '/profile':                   'My Profile',
+  '/admin/settings':            'Settings',
+  '/admin/configurations':      'Configurations',
+  '/admin/payroll-rules':       'Payroll Rules',
 };
 
 export default function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
-  const location = useLocation();
-  const title = pageTitles[location.pathname] || 'EmPay';
+  const location  = useLocation();
+  const navigate  = useNavigate();
+  const { user }  = useAuth();
+
+  const title      = PAGE_TITLES[location.pathname] || 'EmPay';
+  const alertCount = user?.role === ROLES.ADMIN ? systemAlerts.length : 0;
 
   return (
     <div className="app-layout">
-      <Sidebar
-        user={currentUser}
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(c => !c)}
-      />
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
       <div className={`app-main ${collapsed ? 'sidebar-collapsed' : ''}`}>
         <TopBar
-          user={currentUser}
+          user={user}
           pageTitle={title}
+          alertCount={alertCount}
           onMenuToggle={() => setCollapsed(c => !c)}
+          onAlertClick={() => navigate('/dashboard')}
         />
         <main className="page-content">
           <AnimatePresence mode="wait">

@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Bell, Search, Menu } from 'lucide-react';
 import './TopBar.css';
 
-export default function TopBar({ user, pageTitle, onMenuToggle }) {
+export default function TopBar({ user, pageTitle, onMenuToggle, alertCount = 0, onAlertClick }) {
   return (
     <motion.header
       className="topbar"
@@ -35,14 +35,32 @@ export default function TopBar({ user, pageTitle, onMenuToggle }) {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           aria-label="Notifications"
+          onClick={onAlertClick}
+          style={{ position: 'relative' }}
         >
           <Bell size={18} />
-          <span className="notif-dot" />
+          {alertCount > 0 ? (
+            <span style={{
+              position: 'absolute', top: -4, right: -4,
+              width: 18, height: 18, borderRadius: '50%',
+              background: 'var(--error)', color: '#fff',
+              fontSize: 10, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '2px solid var(--surface-container-lowest)',
+            }}>
+              {alertCount > 9 ? '9+' : alertCount}
+            </span>
+          ) : (
+            <span className="notif-dot" />
+          )}
         </motion.button>
 
         <div className="topbar-user">
-          <div className="avatar avatar-sm topbar-avatar">
-            {user?.avatar || 'U'}
+          <div
+            className="avatar avatar-sm topbar-avatar"
+            style={{ background: user?.photoColor || 'var(--primary-container)' }}
+          >
+            {user?.avatar || user?.name?.[0] || 'U'}
           </div>
           <div className="topbar-user-info">
             <span className="topbar-user-name">{user?.name}</span>
