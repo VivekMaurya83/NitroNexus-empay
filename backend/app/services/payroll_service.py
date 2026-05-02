@@ -10,8 +10,13 @@ from app.models.salary import SalaryStructure
 from app.models.attendance import Attendance
 from app.models.leave import LeaveApplication, LeavePolicy
 from app.models.payroll import Payrun, Payslip, PayrunAmendment
-from app.models.enums import (AttendanceStatus, LeaveStatus, PayrunStatus, EmploymentStatus)
+from app.models.enums import (AttendanceStatus, LeaveStatus, PayrunStatus, EmploymentStatus, WageType)
 from app.core.config import settings
+from app.services.holiday_service import (
+    get_holiday_dates,
+    get_weekend_weekdays,
+    count_working_days_in_range,
+)
 
 _PT_SLABS = {
     "Maharashtra": [(0, 7500, 0), (7501, 10000, 175), (10001, None, 200)],
@@ -32,12 +37,19 @@ def get_professional_tax(gross: Decimal, state: str) -> Decimal:
             return Decimal(str(tax))
     return Decimal("200")
 
-def get_working_days(month: int, year: int, join_date: date,
+def get_working_days(db_or_weekends, month: int, year: int, join_date: date,
                      leave_date: Optional[date],
-                     holiday_dates: set = None) -> int:
+                     holiday_dates: set = None,
+                     weekends: set = None) -> int:
     """
     Calculates actual working days in a month for an employee.
-    Excludes: Sundays, company/national holidays (non-optional).
+
+    Weekend days are determined dynamically from the `weekends` set (derived
+    from PayrollConfig via get_weekend_weekdays).  If `weekends` is not
+    supplied the legacy Sunday-only behaviour is preserved so existing callers
+    remain safe.
+
+    Excludes: weekend days, company/national holidays (non-optional).
     Respects employee join date and leave/termination date.
     """
     first = date(year, month, 1)
@@ -47,16 +59,22 @@ def get_working_days(month: int, year: int, join_date: date,
     if start > end:
         return 0
 
-    holidays = holiday_dates or set()   # empty set = old behavior (safe fallback)
+    weekend_days = weekends if weekends is not None else {6}   # Sunday fallback
+    holidays = holiday_dates or set()
     count, current = 0, start
     while current <= end:
-        if current.weekday() != 6 and current not in holidays:
+        if current.weekday() not in weekend_days and current not in holidays:
             count += 1
         current += timedelta(days=1)
     return count
 
 def _r2(val: Decimal) -> Decimal:
+    """Round to 2 decimal places — applied to every salary component."""
     return val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+def _round_net(val: Decimal) -> Decimal:
+    """Round net pay to the nearest whole rupee (Step 7, Reference Guide)."""
+    return val.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 def detect_anomalies(data: dict, prev: Optional[Payslip]) -> Tuple[Optional[str], bool]:
     flags = []
@@ -74,62 +92,190 @@ def detect_anomalies(data: dict, prev: Optional[Payslip]) -> Tuple[Optional[str]
 
 def _build_payslip(db: Session, employee: Employee,
                    payrun: Payrun, salary: SalaryStructure) -> Payslip:
+    """
+    Multi-wage payroll engine (Reference Guide §3 & §4).
+
+    Branches on salary.wage_type:
+      MONTHLY_FIXED — prorate each component by payable-day ratio;
+                      LOP is calculated and displayed explicitly on the
+                      payslip but NOT subtracted again (gross is already
+                      prorated to avoid double-deduction).
+      DAILY_WAGE    — Gross = daily_rate × days_present. PF applies only
+                      if pf_applicable is True. No paid leaves.
+      HOURLY_WAGE   — Gross = hourly_rate × total_logged_hours from
+                      Attendance. No paid leaves. No PF by default.
+
+    Net Pay is rounded to the nearest whole rupee (Step 7).
+    All component amounts are rounded to 2 decimal places.
+    """
     month, year = payrun.month, payrun.year
+    wage_type   = salary.wage_type or WageType.MONTHLY_FIXED
 
-    from app.services.holiday_service import get_holiday_dates
-    holiday_dates = get_holiday_dates(db, payrun.company_id, month, year)
-    total_wd = get_working_days(month, year, employee.date_of_joining,
-                                employee.date_of_leaving, holiday_dates)
-
+    # ── Shared: Attendance aggregation ──────────────────────────────────────
     att = db.query(Attendance).filter(
         Attendance.employee_id == employee.id,
         extract("month", Attendance.date) == month,
         extract("year",  Attendance.date) == year,
     ).all()
 
-    days_present = Decimal("0")
+    days_present   = Decimal("0")
+    total_hours    = Decimal("0")   # used by HOURLY_WAGE branch
     for r in att:
         if r.status in (AttendanceStatus.PRESENT, AttendanceStatus.LATE,
                         AttendanceStatus.WORK_FROM_HOME):
             days_present += Decimal("1")
         elif r.status == AttendanceStatus.HALF_DAY:
             days_present += Decimal("0.5")
+        if r.working_hours:
+            total_hours += Decimal(str(r.working_hours))
 
-    approved_leaves = db.query(LeaveApplication).filter(
+    # ── DAILY_WAGE branch ────────────────────────────────────────────────────
+    if wage_type == WageType.DAILY_WAGE:
+        daily = Decimal(str(salary.daily_rate or 0))
+        gross = _r2(daily * days_present)
+        # Bonus is still applicable for daily wage employees
+        gross += _r2(Decimal(str(salary.bonus)))
+        pf_e = (_r2(gross * Decimal(str(settings.PF_RATE)))
+                if salary.pf_applicable and gross > 0 else Decimal("0"))
+        pt   = get_professional_tax(gross, salary.professional_tax_state)
+        total_ded = pf_e + pt
+        net  = _round_net(max(Decimal("0"), gross - total_ded))
+
+        prev_m, prev_y = (month-1, year) if month > 1 else (12, year-1)
+        prev_ps = (db.query(Payslip).join(Payrun)
+                   .filter(Payslip.employee_id == employee.id,
+                           Payrun.month == prev_m, Payrun.year == prev_y,
+                           Payrun.status == PayrunStatus.COMPLETED)
+                   .first())
+        anomaly_str, is_anom = detect_anomalies(
+            {"effective_paid_days": days_present, "basic": gross,
+             "pf_employee": pf_e, "net_pay": net}, prev_ps)
+
+        return Payslip(
+            payrun_id=payrun.id, employee_id=employee.id,
+            total_working_days=0, days_present=days_present,
+            days_absent=Decimal("0"), paid_leave_days=Decimal("0"),
+            unpaid_leave_days=Decimal("0"), effective_paid_days=days_present,
+            basic=gross, hra=Decimal("0"), conveyance=Decimal("0"),
+            medical=Decimal("0"), special_allowance=Decimal("0"),
+            lta=Decimal("0"), bonus=_r2(Decimal(str(salary.bonus))),
+            gross_earnings=gross, pf_employee=pf_e, pf_employer=pf_e,
+            professional_tax=pt, tds=Decimal("0"),
+            lop_deduction=Decimal("0"), other_deductions=Decimal("0"),
+            total_deductions=total_ded, net_pay=net,
+            anomaly_flags=anomaly_str, is_anomalous=is_anom,
+        )
+
+    # ── HOURLY_WAGE branch ───────────────────────────────────────────────────
+    if wage_type == WageType.HOURLY_WAGE:
+        hourly = Decimal(str(salary.hourly_rate or 0))
+        gross  = _r2(hourly * total_hours)
+        gross += _r2(Decimal(str(salary.bonus)))
+        # Hourly workers: no PF by default (pf_applicable gate still honoured)
+        pf_e = (_r2(gross * Decimal(str(settings.PF_RATE)))
+                if salary.pf_applicable and gross > 0 else Decimal("0"))
+        pt   = get_professional_tax(gross, salary.professional_tax_state)
+        total_ded = pf_e + pt
+        net  = _round_net(max(Decimal("0"), gross - total_ded))
+
+        prev_m, prev_y = (month-1, year) if month > 1 else (12, year-1)
+        prev_ps = (db.query(Payslip).join(Payrun)
+                   .filter(Payslip.employee_id == employee.id,
+                           Payrun.month == prev_m, Payrun.year == prev_y,
+                           Payrun.status == PayrunStatus.COMPLETED)
+                   .first())
+        anomaly_str, is_anom = detect_anomalies(
+            {"effective_paid_days": days_present, "basic": gross,
+             "pf_employee": pf_e, "net_pay": net}, prev_ps)
+
+        return Payslip(
+            payrun_id=payrun.id, employee_id=employee.id,
+            total_working_days=0, days_present=days_present,
+            days_absent=Decimal("0"), paid_leave_days=Decimal("0"),
+            unpaid_leave_days=Decimal("0"), effective_paid_days=days_present,
+            basic=gross, hra=Decimal("0"), conveyance=Decimal("0"),
+            medical=Decimal("0"), special_allowance=Decimal("0"),
+            lta=Decimal("0"), bonus=_r2(Decimal(str(salary.bonus))),
+            gross_earnings=gross, pf_employee=pf_e, pf_employer=pf_e,
+            professional_tax=pt, tds=Decimal("0"),
+            lop_deduction=Decimal("0"), other_deductions=Decimal("0"),
+            total_deductions=total_ded, net_pay=net,
+            anomaly_flags=anomaly_str, is_anomalous=is_anom,
+        )
+
+    # ── MONTHLY_FIXED branch (default) ───────────────────────────────────────
+    weekends      = get_weekend_weekdays(db, payrun.company_id)
+    holiday_dates = get_holiday_dates(db, payrun.company_id, month, year)
+    
+    period_first = date(year, month, 1)
+    period_last  = date(year, month, monthrange(year, month)[1])
+
+    # Company working days for the full month (used as the salary denominator)
+    month_working_days = get_working_days(
+        db, month, year, period_first, period_last, holiday_dates, weekends=weekends
+    )
+
+    # Employee expected working days (used to compute true days_absent)
+    expected_working_days = get_working_days(
+        db, month, year, employee.date_of_joining,
+        employee.date_of_leaving, holiday_dates, weekends=weekends
+    )
+
+    # ── Cross-month leave overlap ────────────────────────────────────────────
+    overlapping_leaves = db.query(LeaveApplication).filter(
         LeaveApplication.employee_id == employee.id,
-        LeaveApplication.status == LeaveStatus.APPROVED,
-        extract("month", LeaveApplication.start_date) == month,
-        extract("year",  LeaveApplication.start_date) == year,
+        LeaveApplication.status      == LeaveStatus.APPROVED,
+        LeaveApplication.start_date  <= period_last,
+        LeaveApplication.end_date    >= period_first,
     ).all()
 
     paid_days, unpaid_days = Decimal("0"), Decimal("0")
-    for lv in approved_leaves:
+    for lv in overlapping_leaves:
+        intersect_start = max(lv.start_date, period_first)
+        intersect_end   = min(lv.end_date,   period_last)
+        working_in_intersection = count_working_days_in_range(
+            db, payrun.company_id, intersect_start, intersect_end
+        )
+        intersection_days = Decimal(str(working_in_intersection))
         policy = db.query(LeavePolicy).filter(
             LeavePolicy.leave_type == lv.leave_type).first()
         if policy and policy.is_paid:
-            paid_days += Decimal(str(lv.total_days))
+            paid_days   += intersection_days
         else:
-            unpaid_days += Decimal(str(lv.total_days))
+            unpaid_days += intersection_days
+    # ────────────────────────────────────────────────────────────────────────
 
-    eff_paid   = min(days_present + paid_days, Decimal(str(total_wd)))
+    eff_paid    = min(days_present + paid_days, Decimal(str(expected_working_days)))
     days_absent = max(Decimal("0"),
-                      Decimal(str(total_wd)) - eff_paid - unpaid_days)
-    ratio = (eff_paid / Decimal(str(total_wd))) if total_wd > 0 else Decimal("0")
+                      Decimal(str(expected_working_days)) - eff_paid - unpaid_days)
+    ratio = (eff_paid / Decimal(str(month_working_days))) if month_working_days > 0 else Decimal("0")
 
-    basic = _r2(Decimal(str(salary.basic)) * ratio)
-    hra   = _r2(Decimal(str(salary.hra))   * ratio)
-    conv  = _r2(Decimal(str(salary.conveyance)) * ratio)
-    med   = _r2(Decimal(str(salary.medical)) * ratio)
+    # Prorate each component independently (Step 4 — Reference Guide)
+    basic = _r2(Decimal(str(salary.basic))             * ratio)
+    hra   = _r2(Decimal(str(salary.hra))               * ratio)
+    conv  = _r2(Decimal(str(salary.conveyance))        * ratio)
+    med   = _r2(Decimal(str(salary.medical))           * ratio)
     spl   = _r2(Decimal(str(salary.special_allowance)) * ratio)
-    lta   = _r2(Decimal(str(salary.lta)) * ratio)
-    bonus = _r2(Decimal(str(salary.bonus)))  # not prorated
+    lta   = _r2(Decimal(str(salary.lta))               * ratio)
+    bonus = _r2(Decimal(str(salary.bonus)))             # not prorated
 
     gross = basic + hra + conv + med + spl + lta + bonus
-    pf_e  = (_r2(basic * Decimal(str(settings.PF_RATE)))
-             if salary.pf_applicable and basic > 0 else Decimal("0"))
-    pt    = get_professional_tax(gross, salary.professional_tax_state)
+
+    # Explicit LOP Deduction — for payslip transparency only.
+    # Gross is already prorated so this is NOT subtracted from net pay
+    # to avoid double-penalizing the employee (Reference Guide §6 fix).
+    daily_ctc   = (Decimal(str(salary.basic + salary.hra +
+                               salary.conveyance + salary.medical +
+                               salary.special_allowance + salary.lta))
+                   / Decimal(str(month_working_days))) if month_working_days > 0 else Decimal("0")
+    lop_deduction = _r2(daily_ctc * unpaid_days)
+
+    pf_e      = (_r2(basic * Decimal(str(settings.PF_RATE)))
+                 if salary.pf_applicable and basic > 0 else Decimal("0"))
+    pt        = get_professional_tax(gross, salary.professional_tax_state)
     total_ded = pf_e + pt
-    net   = max(Decimal("0"), _r2(gross - total_ded))
+    # Step 7: round net pay to the nearest whole rupee
+    net       = _round_net(max(Decimal("0"), gross - total_ded))
 
     prev_m, prev_y = (month-1, year) if month > 1 else (12, year-1)
     prev_ps = (db.query(Payslip).join(Payrun)
@@ -145,13 +291,14 @@ def _build_payslip(db: Session, employee: Employee,
 
     return Payslip(
         payrun_id=payrun.id, employee_id=employee.id,
-        total_working_days=total_wd, days_present=days_present,
+        total_working_days=month_working_days, days_present=days_present,
         days_absent=days_absent, paid_leave_days=paid_days,
         unpaid_leave_days=unpaid_days, effective_paid_days=eff_paid,
         basic=basic, hra=hra, conveyance=conv, medical=med,
         special_allowance=spl, lta=lta, bonus=bonus,
         gross_earnings=gross, pf_employee=pf_e, pf_employer=pf_e,
-        professional_tax=pt, tds=Decimal("0"), other_deductions=Decimal("0"),
+        professional_tax=pt, tds=Decimal("0"),
+        lop_deduction=lop_deduction, other_deductions=Decimal("0"),
         total_deductions=total_ded, net_pay=net,
         anomaly_flags=anomaly_str, is_anomalous=is_anom,
     )

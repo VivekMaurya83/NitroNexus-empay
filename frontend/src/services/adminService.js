@@ -40,6 +40,6 @@ export async function getCompanyUsers() {
   return api.get('/companies/me/users');
 }
 
-export async function deactivateUser(userId) {
-  return api.delete(`/auth/users/${userId}/deactivate`);
+export async function deleteUser(userId) {
+  return api.delete(`/auth/users/${userId}`);
 }

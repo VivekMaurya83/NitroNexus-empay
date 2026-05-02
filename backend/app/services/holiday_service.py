@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import extract
-from datetime import date
-from typing import Optional
+from datetime import date, timedelta
+from typing import Optional, Set
 
 from app.models.holiday import Holiday
 from app.models.enums import HolidayType
@@ -85,6 +85,66 @@ def get_holiday_dates(db: Session, company_id: int,
         extract("month", Holiday.date) == month,
     ).all()
     return {h.date for h in holidays}
+
+
+def get_holiday_dates_in_range(db: Session, company_id: int,
+                               start: date, end: date) -> Set[date]:
+    """Returns a set of non-optional holiday dates falling within [start, end].
+    Works across month and year boundaries — suitable for cross-month leaves."""
+    holidays = db.query(Holiday).filter(
+        Holiday.company_id == company_id,
+        Holiday.is_optional == False,
+        Holiday.date >= start,
+        Holiday.date <= end,
+    ).all()
+    return {h.date for h in holidays}
+
+
+def get_weekend_weekdays(db: Session, company_id: int) -> Set[int]:
+    """Returns the set of Python weekday numbers (Mon=0 … Sun=6) that are
+    treated as weekly-off days for this company.
+
+    The determination is fully dynamic — it reads PayrollConfig:
+      - working_days_per_month >= 25  →  6-day week  →  Sunday only  {6}
+      - working_days_per_month <= 23  →  5-day week  →  Sat + Sun    {5, 6}
+
+    Falls back to Sunday-only if no PayrollConfig exists yet (safe default
+    that matches the existing hardcoded behaviour).
+    """
+    try:
+        from app.models.payroll import PayrollConfig
+        config = db.query(PayrollConfig).filter(
+            PayrollConfig.company_id == company_id
+        ).first()
+        if config and int(config.working_days_per_month) <= 23:
+            return {5, 6}  # Saturday and Sunday
+    except Exception:
+        pass
+    return {6}  # Sunday only (6-day work week default)
+
+
+def count_working_days_in_range(db: Session, company_id: int,
+                                start: date, end: date) -> float:
+    """Counts actual working days between start and end (inclusive).
+
+    Excludes:
+      - Weekend days as determined dynamically by get_weekend_weekdays()
+      - Non-optional company/national holidays registered in the Holiday table
+
+    Returns a float to stay compatible with the rest of the payroll maths
+    (half-days are handled at a higher layer).
+    """
+    if start > end:
+        return 0.0
+    weekends = get_weekend_weekdays(db, company_id)
+    holidays = get_holiday_dates_in_range(db, company_id, start, end)
+    count = 0
+    current = start
+    while current <= end:
+        if current.weekday() not in weekends and current not in holidays:
+            count += 1
+        current += timedelta(days=1)
+    return float(count)
 
 
 def delete_holiday(db: Session, holiday_id: int,

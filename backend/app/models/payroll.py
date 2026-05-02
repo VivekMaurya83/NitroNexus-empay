@@ -55,6 +55,8 @@ class Payslip(Base):
     pf_employer          = Column(Numeric(12, 2), default=0)
     professional_tax     = Column(Numeric(12, 2), default=0)
     tds                  = Column(Numeric(12, 2), default=0)
+    # Loss of Pay shown explicitly on payslip (gross is already prorated — informational only)
+    lop_deduction        = Column(Numeric(12, 2), default=0)
     other_deductions     = Column(Numeric(12, 2), default=0)
     total_deductions     = Column(Numeric(12, 2), default=0)
     net_pay              = Column(Numeric(12, 2), default=0)

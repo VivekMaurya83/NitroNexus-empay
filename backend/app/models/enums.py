@@ -12,6 +12,11 @@ class EmploymentType(str, Enum):
     CONTRACT = "contract"
     INTERN = "intern"
 
+class WageType(str, Enum):
+    MONTHLY_FIXED = "monthly_fixed"  # Standard salaried — prorate all components
+    DAILY_WAGE    = "daily_wage"     # Contract/daily workers — daily_rate × present days
+    HOURLY_WAGE   = "hourly_wage"    # Part-time/gig — hourly_rate × logged hours
+
 class EmploymentStatus(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
