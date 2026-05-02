@@ -7,6 +7,7 @@ from app.models.leave import LeaveAllocation, LeavePolicy
 from app.models.payroll import Payslip, Payrun
 from app.models.enums import AttendanceStatus, PayrunStatus, EmploymentStatus
 
+
 def get_attendance_heatmap(db: Session, employee_id: int,
                            month: int, year: int) -> dict:
     records = db.query(Attendance).filter(
@@ -23,8 +24,11 @@ def get_attendance_heatmap(db: Session, employee_id: int,
         ],
     }
 
-def get_department_payroll_breakdown(db: Session, month: int, year: int) -> List[dict]:
+
+def get_department_payroll_breakdown(db: Session, month: int, year: int,
+                                     company_id: int) -> List[dict]:
     payrun = db.query(Payrun).filter(
+        Payrun.company_id == company_id,
         Payrun.month == month, Payrun.year == year,
         Payrun.status.in_([PayrunStatus.COMPLETED, PayrunStatus.AMENDED]),
     ).first()
@@ -47,14 +51,18 @@ def get_department_payroll_breakdown(db: Session, month: int, year: int) -> List
              "total_deductions": float(r.total_ded or 0),
              "total_net": float(r.total_net or 0)} for r in rows]
 
-def get_leave_utilization(db: Session, year: int) -> List[dict]:
+
+def get_leave_utilization(db: Session, year: int, company_id: int) -> List[dict]:
     allocs = (db.query(
                   LeavePolicy.leave_type,
                   func.sum(LeaveAllocation.total_days).label("total_alloc"),
                   func.sum(LeaveAllocation.used_days).label("total_used"),
               )
               .join(LeaveAllocation, LeaveAllocation.policy_id == LeavePolicy.id)
-              .filter(LeaveAllocation.year == year)
+              .filter(
+                  LeaveAllocation.company_id == company_id,
+                  LeaveAllocation.year == year,
+              )
               .group_by(LeavePolicy.id, LeavePolicy.leave_type)
               .all())
     result = []
@@ -66,9 +74,14 @@ def get_leave_utilization(db: Session, year: int) -> List[dict]:
                         "utilization_pct": round((used/total*100) if total else 0, 1)})
     return result
 
-def get_payroll_trend(db: Session, months: int = 6) -> List[dict]:
+
+def get_payroll_trend(db: Session, months: int = 6,
+                      company_id: int = 0) -> List[dict]:
     payruns = (db.query(Payrun)
-               .filter(Payrun.status.in_([PayrunStatus.COMPLETED, PayrunStatus.AMENDED]))
+               .filter(
+                   Payrun.company_id == company_id,
+                   Payrun.status.in_([PayrunStatus.COMPLETED, PayrunStatus.AMENDED]),
+               )
                .order_by(Payrun.year.desc(), Payrun.month.desc())
                .limit(months).all())
     return [{"month": p.month, "year": p.year,
@@ -79,9 +92,13 @@ def get_payroll_trend(db: Session, months: int = 6) -> List[dict]:
              "employee_count": p.employee_count}
             for p in reversed(payruns)]
 
-def get_headcount_by_department(db: Session) -> List[dict]:
+
+def get_headcount_by_department(db: Session, company_id: int) -> List[dict]:
     rows = (db.query(Department.name, func.count(Employee.id).label("count"))
             .join(Employee, Employee.department_id == Department.id, isouter=True)
-            .filter(Employee.employment_status == EmploymentStatus.ACTIVE)
+            .filter(
+                Department.company_id == company_id,
+                Employee.employment_status == EmploymentStatus.ACTIVE,
+            )
             .group_by(Department.id, Department.name).all())
     return [{"department": r.name, "count": r.count} for r in rows]

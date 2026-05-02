@@ -9,7 +9,7 @@ from app.schemas.attendance import AttendanceCheckIn, AttendanceCheckOut, Attend
 STANDARD_HOURS = 8.0
 LATE_CUTOFF_HOUR = 10
 
-def check_in(db: Session, p: AttendanceCheckIn) -> Attendance:
+def check_in(db: Session, p: AttendanceCheckIn, company_id: int) -> Attendance:
     existing = db.query(Attendance).filter(
         Attendance.employee_id == p.employee_id,
         Attendance.date == p.check_in.date(),
@@ -19,6 +19,7 @@ def check_in(db: Session, p: AttendanceCheckIn) -> Attendance:
     hour = p.check_in.hour
     status = AttendanceStatus.LATE if hour >= LATE_CUTOFF_HOUR else AttendanceStatus.PRESENT
     record = Attendance(
+        company_id=company_id,
         employee_id=p.employee_id, date=p.check_in.date(),
         check_in=p.check_in, status=status, remarks=p.remarks,
     )
@@ -45,7 +46,8 @@ def check_out(db: Session, attendance_id: int, p: AttendanceCheckOut) -> Attenda
     db.refresh(record)
     return record
 
-def manual_entry(db: Session, p: AttendanceManualEntry) -> Attendance:
+def manual_entry(db: Session, p: AttendanceManualEntry,
+                 company_id: int) -> Attendance:
     existing = db.query(Attendance).filter(
         Attendance.employee_id == p.employee_id,
         Attendance.date == p.date,
@@ -54,6 +56,7 @@ def manual_entry(db: Session, p: AttendanceManualEntry) -> Attendance:
         db.delete(existing)
         db.commit()
     record = Attendance(
+        company_id=company_id,
         employee_id=p.employee_id, date=p.date, status=p.status,
         check_in=p.check_in, check_out=p.check_out,
         working_hours=p.working_hours, is_manual="true", remarks=p.remarks,

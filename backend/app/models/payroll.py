@@ -5,10 +5,12 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 from app.models.enums import PayrunStatus
 
+
 class Payrun(Base):
     __tablename__ = "payruns"
 
     id                = Column(Integer, primary_key=True, index=True)
+    company_id        = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     month             = Column(Integer, nullable=False)
     year              = Column(Integer, nullable=False)
     period_start      = Column(DateTime(timezone=True), nullable=False)
@@ -32,6 +34,7 @@ class Payslip(Base):
     __tablename__ = "payslips"
 
     id                   = Column(Integer, primary_key=True, index=True)
+    company_id           = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     payrun_id            = Column(Integer, ForeignKey("payruns.id"), nullable=False)
     employee_id          = Column(Integer, ForeignKey("employees.id"), nullable=False)
     total_working_days   = Column(Integer, default=0)
@@ -69,6 +72,7 @@ class PayrunAmendment(Base):
     __tablename__ = "payrun_amendments"
 
     id                    = Column(Integer, primary_key=True, index=True)
+    company_id            = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     original_payrun_id    = Column(Integer, ForeignKey("payruns.id"), nullable=False)
     leave_application_id  = Column(Integer, ForeignKey("leave_applications.id"), nullable=False)
     affected_employee_id  = Column(Integer, ForeignKey("employees.id"), nullable=False)

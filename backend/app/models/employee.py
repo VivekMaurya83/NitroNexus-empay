@@ -1,17 +1,25 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, Enum as SAEnum, ForeignKey
+from sqlalchemy import (Column, Integer, String, Date, DateTime,
+                         Enum as SAEnum, ForeignKey, UniqueConstraint)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 from app.models.enums import EmploymentType, EmploymentStatus
 
+
 class Department(Base):
     __tablename__ = "departments"
+    __table_args__ = (
+        # Dept name must be unique within a company, not globally
+        UniqueConstraint("company_id", "name", name="uq_departments_company_name"),
+    )
 
     id          = Column(Integer, primary_key=True, index=True)
-    name        = Column(String(100), unique=True, nullable=False)
+    company_id  = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    name        = Column(String(100), nullable=False)
     description = Column(String(500), nullable=True)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
 
+    company      = relationship("Company", back_populates="departments")
     employees    = relationship("Employee", back_populates="department")
     designations = relationship("Designation", back_populates="department")
 
@@ -20,6 +28,7 @@ class Designation(Base):
     __tablename__ = "designations"
 
     id            = Column(Integer, primary_key=True, index=True)
+    company_id    = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     title         = Column(String(150), nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
@@ -32,6 +41,7 @@ class Employee(Base):
     __tablename__ = "employees"
 
     id                 = Column(Integer, primary_key=True, index=True)
+    company_id         = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     user_id            = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     employee_code      = Column(String(20), unique=True, nullable=False, index=True)
     first_name         = Column(String(100), nullable=False)

@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict
 from app.models.audit import AuditLog
 
+
 def log_action(
     db: Session,
     user_id: Optional[int],
@@ -12,11 +13,13 @@ def log_action(
     old_values: Optional[Dict] = None,
     new_values: Optional[Dict] = None,
     ip_address: Optional[str] = None,
+    company_id: Optional[int] = None,
 ):
     log = AuditLog(
-        user_id=user_id, action=action, resource_type=resource_type,
-        resource_id=resource_id, description=description,
-        old_values=old_values, new_values=new_values, ip_address=ip_address,
+        company_id=company_id, user_id=user_id, action=action,
+        resource_type=resource_type, resource_id=resource_id,
+        description=description, old_values=old_values,
+        new_values=new_values, ip_address=ip_address,
     )
     db.add(log)
     db.commit()

@@ -23,5 +23,5 @@ def ask(payload: AIQuery, db: Session = Depends(get_db),
     employee_id = None
     if cu.role == UserRole.EMPLOYEE and cu.employee:
         employee_id = cu.employee.id
-    answer = ask_ai(db, payload.question, employee_id)
+    answer = ask_ai(db, payload.question, cu.company_id, employee_id)
     return ResponseModel(data={"question": payload.question, "answer": answer})

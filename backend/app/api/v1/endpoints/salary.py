@@ -26,6 +26,7 @@ def create_salary_structure(p: SalaryStructureCreate,
         e.is_active = False
 
     sal = SalaryStructure(
+        company_id=cu.company_id,
         employee_id=p.employee_id,
         basic=p.basic, hra=p.hra,
         conveyance=p.conveyance, medical=p.medical,

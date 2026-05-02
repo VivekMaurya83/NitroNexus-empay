@@ -16,13 +16,16 @@ Answer HR questions using ONLY the CONTEXT DATA provided.
 If the data does not contain what is asked, say 'I don\'t have that data available.'
 Be concise. Use bullet points for lists. Use ₹ for money."""
 
-def _gather_context(db: Session, employee_id: Optional[int] = None) -> str:
+def _gather_context(db: Session, company_id: int,
+                    employee_id: Optional[int] = None) -> str:
     today = date.today()
     lines = [f"Today: {today.strftime('%d %b %Y')}"]
 
     total_emp  = db.query(Employee).filter(
+        Employee.company_id == company_id,
         Employee.employment_status == EmploymentStatus.ACTIVE).count()
-    total_dept = db.query(Department).count()
+    total_dept = db.query(Department).filter(
+        Department.company_id == company_id).count()
     lines.append(f"Company: {total_emp} active employees, {total_dept} departments")
 
     pending = db.query(LeaveApplication).filter(
@@ -30,7 +33,10 @@ def _gather_context(db: Session, employee_id: Optional[int] = None) -> str:
     lines.append(f"Pending leave applications: {pending}")
 
     latest = (db.query(Payrun)
-              .filter(Payrun.status == PayrunStatus.COMPLETED)
+              .filter(
+                  Payrun.company_id == company_id,
+                  Payrun.status == PayrunStatus.COMPLETED,
+              )
               .order_by(Payrun.year.desc(), Payrun.month.desc()).first())
     if latest:
         lines.append(
@@ -83,6 +89,7 @@ def _gather_context(db: Session, employee_id: Optional[int] = None) -> str:
 
     dept_stats = (db.query(Department.name, func.count(Employee.id))
                   .join(Employee, Employee.department_id == Department.id, isouter=True)
+                  .filter(Department.company_id == company_id)
                   .group_by(Department.id, Department.name).all())
     if dept_stats:
         lines.append("Dept headcount: " +
@@ -90,12 +97,12 @@ def _gather_context(db: Session, employee_id: Optional[int] = None) -> str:
 
     return "\n".join(lines)
 
-def ask_ai(db: Session, question: str,
+def ask_ai(db: Session, question: str, company_id: int,
            employee_id: Optional[int] = None) -> str:
     if not settings.GROQ_API_KEY:
         return "AI assistant not configured. Set GROQ_API_KEY in .env"
     try:
-        context = _gather_context(db, employee_id)
+        context = _gather_context(db, company_id, employee_id)
         client  = Groq(api_key=settings.GROQ_API_KEY)
         resp = client.chat.completions.create(
             model=settings.GROQ_MODEL,

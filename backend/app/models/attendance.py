@@ -8,6 +8,7 @@ class Attendance(Base):
     __tablename__ = "attendances"
 
     id            = Column(Integer, primary_key=True, index=True)
+    company_id    = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     employee_id   = Column(Integer, ForeignKey("employees.id"), nullable=False)
     date          = Column(Date, nullable=False)
     check_in      = Column(DateTime(timezone=True), nullable=True)

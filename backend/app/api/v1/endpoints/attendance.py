@@ -6,6 +6,7 @@ from datetime import date
 from app.core.database import get_db
 from app.models.user import User
 from app.models.attendance import Attendance
+from app.models.employee import Employee
 from app.models.enums import UserRole
 from app.schemas.attendance import (AttendanceCheckIn, AttendanceCheckOut,
                                      AttendanceManualEntry, AttendanceOut)
@@ -25,11 +26,12 @@ def check_in(p: AttendanceCheckIn, db: Session = Depends(get_db),
         if not cu.employee or cu.employee.id != p.employee_id:
             raise HTTPException(403, "You can only check in for yourself")
     try:
-        record = attendance_service.check_in(db, p)
+        record = attendance_service.check_in(db, p, cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, "check_in", "Attendance", record.id,
-               f"Check-in: emp {p.employee_id} at {p.check_in}")
+               f"Check-in: emp {p.employee_id} at {p.check_in}",
+               company_id=cu.company_id)
     return ResponseModel(data=AttendanceOut.model_validate(record))
 
 
@@ -37,7 +39,10 @@ def check_in(p: AttendanceCheckIn, db: Session = Depends(get_db),
 def check_out(attendance_id: int, p: AttendanceCheckOut,
               db: Session = Depends(get_db),
               cu: User = Depends(get_current_user)):
-    record = db.query(Attendance).filter(Attendance.id == attendance_id).first()
+    record = db.query(Attendance).filter(
+        Attendance.id == attendance_id,
+        Attendance.company_id == cu.company_id,
+    ).first()
     if not record:
         raise HTTPException(404, "Attendance record not found")
     if cu.role == UserRole.EMPLOYEE:
@@ -48,7 +53,7 @@ def check_out(attendance_id: int, p: AttendanceCheckOut,
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, "check_out", "Attendance", attendance_id,
-               f"Check-out at {p.check_out}")
+               f"Check-out at {p.check_out}", company_id=cu.company_id)
     return ResponseModel(data=AttendanceOut.model_validate(updated))
 
 
@@ -56,11 +61,12 @@ def check_out(attendance_id: int, p: AttendanceCheckOut,
 def manual_entry(p: AttendanceManualEntry, db: Session = Depends(get_db),
                  cu: User = Depends(require_hr_or_payroll)):
     try:
-        record = attendance_service.manual_entry(db, p)
+        record = attendance_service.manual_entry(db, p, cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, "manual_attendance", "Attendance", record.id,
-               f"Manual entry for emp {p.employee_id} on {p.date}")
+               f"Manual entry for emp {p.employee_id} on {p.date}",
+               company_id=cu.company_id)
     return ResponseModel(data=AttendanceOut.model_validate(record))
 
 
@@ -76,9 +82,7 @@ def get_monthly_summary(
         if not cu.employee or cu.employee.id != employee_id:
             raise HTTPException(403, "Access denied")
     summary = attendance_service.get_monthly_summary(db, employee_id, month, year)
-    # serialize records
-    summary["records"] = [AttendanceOut.model_validate(r)
-                          for r in summary["records"]]
+    summary["records"] = [AttendanceOut.model_validate(r) for r in summary["records"]]
     return ResponseModel(data=summary)
 
 
@@ -94,9 +98,12 @@ def get_attendance_by_date_range(
         if not cu.employee or cu.employee.id != employee_id:
             raise HTTPException(403, "Access denied")
     records = (db.query(Attendance)
-               .filter(Attendance.employee_id == employee_id,
-                       Attendance.date >= from_date,
-                       Attendance.date <= to_date)
+               .filter(
+                   Attendance.employee_id == employee_id,
+                   Attendance.company_id == cu.company_id,
+                   Attendance.date >= from_date,
+                   Attendance.date <= to_date,
+               )
                .order_by(Attendance.date).all())
     return ResponseModel(data=[AttendanceOut.model_validate(r) for r in records])
 
@@ -113,6 +120,9 @@ def today_attendance(db: Session = Depends(get_db),
             Attendance.date == today,
         ).first()
         return ResponseModel(data=AttendanceOut.model_validate(record) if record else None)
-    # HR/Payroll/Admin — all employees today
-    records = db.query(Attendance).filter(Attendance.date == today).all()
+    # HR/Payroll/Admin — all employees of THIS company today
+    records = db.query(Attendance).filter(
+        Attendance.company_id == cu.company_id,
+        Attendance.date == today,
+    ).all()
     return ResponseModel(data=[AttendanceOut.model_validate(r) for r in records])

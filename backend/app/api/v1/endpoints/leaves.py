@@ -26,10 +26,12 @@ router = APIRouter(prefix="/leaves", tags=["Leaves"])
 def create_policy(p: LeavePolicyCreate, db: Session = Depends(get_db),
                   cu: User = Depends(require_hr)):
     existing = db.query(LeavePolicy).filter(
-        LeavePolicy.leave_type == p.leave_type).first()
+        LeavePolicy.company_id == cu.company_id,
+        LeavePolicy.leave_type == p.leave_type,
+    ).first()
     if existing:
         raise HTTPException(400, f"Policy for {p.leave_type.value} already exists")
-    policy = LeavePolicy(**p.model_dump())
+    policy = LeavePolicy(company_id=cu.company_id, **p.model_dump())
     db.add(policy)
     db.commit()
     db.refresh(policy)
@@ -38,8 +40,10 @@ def create_policy(p: LeavePolicyCreate, db: Session = Depends(get_db),
 
 @router.get("/policies", response_model=ResponseModel)
 def list_policies(db: Session = Depends(get_db),
-                  _: User = Depends(get_current_user)):
-    policies = db.query(LeavePolicy).all()
+                  cu: User = Depends(get_current_user)):
+    policies = db.query(LeavePolicy).filter(
+        LeavePolicy.company_id == cu.company_id,
+    ).all()
     return ResponseModel(data=[LeavePolicyOut.model_validate(p) for p in policies])
 
 
@@ -49,6 +53,7 @@ def list_policies(db: Session = Depends(get_db),
 def create_allocation(p: LeaveAllocationCreate, db: Session = Depends(get_db),
                       cu: User = Depends(require_hr)):
     existing = db.query(LeaveAllocation).filter(
+        LeaveAllocation.company_id == cu.company_id,
         LeaveAllocation.employee_id == p.employee_id,
         LeaveAllocation.policy_id  == p.policy_id,
         LeaveAllocation.year       == p.year,
@@ -56,6 +61,7 @@ def create_allocation(p: LeaveAllocationCreate, db: Session = Depends(get_db),
     if existing:
         raise HTTPException(400, "Allocation already exists for this employee/policy/year")
     alloc = LeaveAllocation(
+        company_id=cu.company_id,
         employee_id=p.employee_id, policy_id=p.policy_id,
         year=p.year, total_days=p.total_days,
         used_days=0, remaining_days=p.total_days,
@@ -64,7 +70,8 @@ def create_allocation(p: LeaveAllocationCreate, db: Session = Depends(get_db),
     db.commit()
     db.refresh(alloc)
     log_action(db, cu.id, "create_allocation", "LeaveAllocation", alloc.id,
-               f"Allocated {p.total_days} days for emp {p.employee_id}")
+               f"Allocated {p.total_days} days for emp {p.employee_id}",
+               company_id=cu.company_id)
     return ResponseModel(data=LeaveAllocationOut.model_validate(alloc))
 
 
@@ -75,7 +82,10 @@ def get_allocations(employee_id: int, year: Optional[int] = Query(None),
     if cu.role == UserRole.EMPLOYEE:
         if not cu.employee or cu.employee.id != employee_id:
             raise HTTPException(403, "Access denied")
-    q = db.query(LeaveAllocation).filter(LeaveAllocation.employee_id == employee_id)
+    q = db.query(LeaveAllocation).filter(
+        LeaveAllocation.company_id == cu.company_id,
+        LeaveAllocation.employee_id == employee_id,
+    )
     if year:
         q = q.filter(LeaveAllocation.year == year)
     allocs = q.all()
@@ -90,11 +100,12 @@ def apply_leave(p: LeaveApplicationCreate, db: Session = Depends(get_db),
     if not cu.employee:
         raise HTTPException(400, "No employee profile found for your account")
     try:
-        app = leave_service.apply_leave(db, cu.employee.id, p)
+        app = leave_service.apply_leave(db, cu.employee.id, p, cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, "apply_leave", "LeaveApplication", app.id,
-               f"{p.leave_type.value} from {p.start_date} to {p.end_date}")
+               f"{p.leave_type.value} from {p.start_date} to {p.end_date}",
+               company_id=cu.company_id)
     return ResponseModel(data=LeaveApplicationOut.model_validate(app))
 
 
@@ -107,7 +118,9 @@ def list_leave_applications(
     db: Session = Depends(get_db),
     cu: User = Depends(get_current_user),
 ):
-    q = db.query(LeaveApplication)
+    q = db.query(LeaveApplication).filter(
+        LeaveApplication.company_id == cu.company_id,
+    )
     if cu.role == UserRole.EMPLOYEE:
         if not cu.employee:
             raise HTTPException(400, "No employee profile")
@@ -129,7 +142,9 @@ def list_leave_applications(
 def get_leave_application(application_id: int, db: Session = Depends(get_db),
                            cu: User = Depends(get_current_user)):
     app = db.query(LeaveApplication).filter(
-        LeaveApplication.id == application_id).first()
+        LeaveApplication.id == application_id,
+        LeaveApplication.company_id == cu.company_id,
+    ).first()
     if not app:
         raise HTTPException(404, "Leave application not found")
     if cu.role == UserRole.EMPLOYEE:
@@ -144,10 +159,12 @@ def cancel_leave(application_id: int, db: Session = Depends(get_db),
     if not cu.employee:
         raise HTTPException(400, "No employee profile")
     try:
-        app = leave_service.cancel_leave(db, application_id, cu.employee.id)
+        app = leave_service.cancel_leave(db, application_id, cu.employee.id,
+                                         cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    log_action(db, cu.id, "cancel_leave", "LeaveApplication", application_id, "Cancelled")
+    log_action(db, cu.id, "cancel_leave", "LeaveApplication", application_id,
+               "Cancelled", company_id=cu.company_id)
     return ResponseModel(data=LeaveApplicationOut.model_validate(app))
 
 
@@ -155,11 +172,12 @@ def cancel_leave(application_id: int, db: Session = Depends(get_db),
 def hr_review(application_id: int, p: LeaveReviewAction,
               db: Session = Depends(get_db), cu: User = Depends(require_hr)):
     try:
-        app = leave_service.hr_review_leave(db, application_id, cu.id, p)
+        app = leave_service.hr_review_leave(db, application_id, cu.id, p,
+                                            cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, f"hr_{p.action}_leave", "LeaveApplication",
-               application_id, p.remarks or "")
+               application_id, p.remarks or "", company_id=cu.company_id)
     return ResponseModel(data=LeaveApplicationOut.model_validate(app))
 
 
@@ -168,9 +186,10 @@ def payroll_review(application_id: int, p: LeaveReviewAction,
                    db: Session = Depends(get_db),
                    cu: User = Depends(require_hr_or_payroll)):
     try:
-        app = leave_service.payroll_review_leave(db, application_id, cu.id, p)
+        app = leave_service.payroll_review_leave(db, application_id, cu.id, p,
+                                                  cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, f"payroll_{p.action}_leave", "LeaveApplication",
-               application_id, p.remarks or "")
+               application_id, p.remarks or "", company_id=cu.company_id)
     return ResponseModel(data=LeaveApplicationOut.model_validate(app))

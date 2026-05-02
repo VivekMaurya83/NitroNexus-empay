@@ -18,24 +18,32 @@ router = APIRouter(prefix="/payroll", tags=["Payroll"])
 def run_payroll(p: PayrunCreate, db: Session = Depends(get_db),
                 cu: User = Depends(require_payroll)):
     try:
-        payrun = payroll_service.generate_payrun(db, p.month, p.year, cu.id)
+        payrun = payroll_service.generate_payrun(db, p.month, p.year, cu.id,
+                                                  cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, "generate_payrun", "Payrun", payrun.id,
-               f"Payrun {p.month:02d}/{p.year} — {payrun.employee_count} employees")
+               f"Payrun {p.month:02d}/{p.year} — {payrun.employee_count} employees",
+               company_id=cu.company_id)
     return ResponseModel(data=PayrunOut.model_validate(payrun))
 
 
 @router.get("/runs", response_model=ResponseModel)
-def list_payruns(db: Session = Depends(get_db), _: User = Depends(require_hr_or_payroll)):
-    runs = db.query(Payrun).order_by(Payrun.year.desc(), Payrun.month.desc()).all()
+def list_payruns(db: Session = Depends(get_db),
+                 cu: User = Depends(require_hr_or_payroll)):
+    runs = (db.query(Payrun)
+            .filter(Payrun.company_id == cu.company_id)
+            .order_by(Payrun.year.desc(), Payrun.month.desc()).all())
     return ResponseModel(data=[PayrunOut.model_validate(r) for r in runs])
 
 
 @router.get("/runs/{payrun_id}", response_model=ResponseModel)
 def get_payrun(payrun_id: int, db: Session = Depends(get_db),
-               _: User = Depends(require_hr_or_payroll)):
-    pr = db.query(Payrun).filter(Payrun.id == payrun_id).first()
+               cu: User = Depends(require_hr_or_payroll)):
+    pr = db.query(Payrun).filter(
+        Payrun.id == payrun_id,
+        Payrun.company_id == cu.company_id,
+    ).first()
     if not pr:
         raise HTTPException(404, "Payrun not found")
     return ResponseModel(data=PayrunOut.model_validate(pr))
@@ -93,19 +101,22 @@ def amend_payrun(payrun_id: int, p: AmendmentCreate,
                  db: Session = Depends(get_db), cu: User = Depends(require_payroll)):
     try:
         new_ps = payroll_service.amend_payslip(db, payrun_id, p.leave_application_id,
-                                               p.reason, cu.id)
+                                               p.reason, cu.id, cu.company_id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     log_action(db, cu.id, "amend_payrun", "Payslip", new_ps.id,
-               f"Amendment for payrun {payrun_id}: {p.reason}")
+               f"Amendment for payrun {payrun_id}: {p.reason}",
+               company_id=cu.company_id)
     return ResponseModel(data=PayslipOut.model_validate(new_ps))
 
 
 @router.get("/pending-amendments", response_model=ResponseModel)
-def pending_amendments(db: Session = Depends(get_db), _: User = Depends(require_payroll)):
+def pending_amendments(db: Session = Depends(get_db),
+                       cu: User = Depends(require_payroll)):
     from app.models.leave import LeaveApplication
     apps = db.query(LeaveApplication).filter(
-        LeaveApplication.requires_payrun_amendment == True
+        LeaveApplication.company_id == cu.company_id,
+        LeaveApplication.requires_payrun_amendment == True,
     ).all()
     from app.schemas.leave import LeaveApplicationOut
     return ResponseModel(data=[LeaveApplicationOut.model_validate(a) for a in apps])

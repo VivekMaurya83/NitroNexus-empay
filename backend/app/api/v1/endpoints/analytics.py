@@ -36,29 +36,32 @@ def payroll_breakdown(
     month: int = Query(..., ge=1, le=12),
     year:  int = Query(..., ge=2020),
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr_or_payroll),
+    cu: User = Depends(require_hr_or_payroll),
 ):
-    return ResponseModel(data=get_department_payroll_breakdown(db, month, year))
+    return ResponseModel(
+        data=get_department_payroll_breakdown(db, month, year, cu.company_id)
+    )
 
 
 @router.get("/leave-utilization", response_model=ResponseModel)
 def leave_utilization(
     year: int = Query(..., ge=2020),
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr_or_payroll),
+    cu: User = Depends(require_hr_or_payroll),
 ):
-    return ResponseModel(data=get_leave_utilization(db, year))
+    return ResponseModel(data=get_leave_utilization(db, year, cu.company_id))
 
 
 @router.get("/payroll-trend", response_model=ResponseModel)
 def payroll_trend(
     months: int = Query(6, ge=1, le=24),
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr_or_payroll),
+    cu: User = Depends(require_hr_or_payroll),
 ):
-    return ResponseModel(data=get_payroll_trend(db, months))
+    return ResponseModel(data=get_payroll_trend(db, months, cu.company_id))
 
 
 @router.get("/headcount", response_model=ResponseModel)
-def headcount(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return ResponseModel(data=get_headcount_by_department(db))
+def headcount(db: Session = Depends(get_db),
+              cu: User = Depends(get_current_user)):
+    return ResponseModel(data=get_headcount_by_department(db, cu.company_id))

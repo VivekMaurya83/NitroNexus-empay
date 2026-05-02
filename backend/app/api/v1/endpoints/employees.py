@@ -23,20 +23,26 @@ router = APIRouter(prefix="/employees", tags=["Employees"])
 @router.post("/departments", response_model=ResponseModel, status_code=201)
 def create_department(p: DepartmentCreate, db: Session = Depends(get_db),
                       cu: User = Depends(require_hr)):
-    if db.query(Department).filter(Department.name == p.name).first():
+    if db.query(Department).filter(
+        Department.company_id == cu.company_id,
+        Department.name == p.name,
+    ).first():
         raise HTTPException(400, "Department already exists")
-    dept = Department(name=p.name, description=p.description)
+    dept = Department(company_id=cu.company_id, name=p.name, description=p.description)
     db.add(dept)
     db.commit()
     db.refresh(dept)
-    log_action(db, cu.id, "create_department", "Department", dept.id, dept.name)
+    log_action(db, cu.id, "create_department", "Department", dept.id, dept.name,
+               company_id=cu.company_id)
     return ResponseModel(data=DepartmentOut.model_validate(dept), status_code=201)
 
 
 @router.get("/departments", response_model=ResponseModel)
 def list_departments(db: Session = Depends(get_db),
-                     _: User = Depends(get_current_user)):
-    depts = db.query(Department).order_by(Department.name).all()
+                     cu: User = Depends(get_current_user)):
+    depts = (db.query(Department)
+               .filter(Department.company_id == cu.company_id)
+               .order_by(Department.name).all())
     return ResponseModel(data=[DepartmentOut.model_validate(d) for d in depts])
 
 
@@ -45,18 +51,22 @@ def list_departments(db: Session = Depends(get_db),
 @router.post("/designations", response_model=ResponseModel, status_code=201)
 def create_designation(p: DesignationCreate, db: Session = Depends(get_db),
                        cu: User = Depends(require_hr)):
-    des = Designation(title=p.title, department_id=p.department_id)
+    des = Designation(company_id=cu.company_id, title=p.title,
+                      department_id=p.department_id)
     db.add(des)
     db.commit()
     db.refresh(des)
-    log_action(db, cu.id, "create_designation", "Designation", des.id, des.title)
+    log_action(db, cu.id, "create_designation", "Designation", des.id, des.title,
+               company_id=cu.company_id)
     return ResponseModel(data=DesignationOut.model_validate(des))
 
 
 @router.get("/designations", response_model=ResponseModel)
 def list_designations(db: Session = Depends(get_db),
-                      _: User = Depends(get_current_user)):
-    desigs = db.query(Designation).order_by(Designation.title).all()
+                      cu: User = Depends(get_current_user)):
+    desigs = (db.query(Designation)
+                .filter(Designation.company_id == cu.company_id)
+                .order_by(Designation.title).all())
     return ResponseModel(data=[DesignationOut.model_validate(d) for d in desigs])
 
 
@@ -68,14 +78,15 @@ def create_employee(p: EmployeeCreate, db: Session = Depends(get_db),
     if db.query(Employee).filter(Employee.user_id == p.user_id).first():
         raise HTTPException(400, "Employee profile already exists for this user")
 
-    # auto-generate employee code
-    count = db.query(Employee).count()
+    # Auto-generate employee code scoped to company
+    count = db.query(Employee).filter(Employee.company_id == cu.company_id).count()
     code  = f"EMP{str(1001 + count).zfill(6)}"
     while db.query(Employee).filter(Employee.employee_code == code).first():
         count += 1
         code = f"EMP{str(1001 + count).zfill(6)}"
 
     emp = Employee(
+        company_id=cu.company_id,
         user_id=p.user_id, employee_code=code,
         first_name=p.first_name, last_name=p.last_name,
         date_of_joining=p.date_of_joining, date_of_birth=p.date_of_birth,
@@ -89,7 +100,8 @@ def create_employee(p: EmployeeCreate, db: Session = Depends(get_db),
     db.commit()
     db.refresh(emp)
     log_action(db, cu.id, "create_employee", "Employee", emp.id,
-               f"{emp.first_name} {emp.last_name} ({emp.employee_code})")
+               f"{emp.first_name} {emp.last_name} ({emp.employee_code})",
+               company_id=cu.company_id)
     return ResponseModel(data=EmployeeOut.model_validate(emp))
 
 
@@ -109,7 +121,7 @@ def list_employees(
             raise HTTPException(400, "No employee profile found")
         return ResponseModel(data=[EmployeeOut.model_validate(cu.employee)])
 
-    q = db.query(Employee)
+    q = db.query(Employee).filter(Employee.company_id == cu.company_id)
     if department_id:
         q = q.filter(Employee.department_id == department_id)
     if status:
@@ -132,7 +144,10 @@ def list_employees(
 @router.get("/{employee_id}", response_model=ResponseModel)
 def get_employee(employee_id: int, db: Session = Depends(get_db),
                  cu: User = Depends(get_current_user)):
-    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    emp = db.query(Employee).filter(
+        Employee.id == employee_id,
+        Employee.company_id == cu.company_id,
+    ).first()
     if not emp:
         raise HTTPException(404, "Employee not found")
     if cu.role == UserRole.EMPLOYEE:
@@ -145,7 +160,10 @@ def get_employee(employee_id: int, db: Session = Depends(get_db),
 def update_employee(employee_id: int, p: EmployeeUpdate,
                     db: Session = Depends(get_db),
                     cu: User = Depends(get_current_user)):
-    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    emp = db.query(Employee).filter(
+        Employee.id == employee_id,
+        Employee.company_id == cu.company_id,
+    ).first()
     if not emp:
         raise HTTPException(404, "Employee not found")
     # Employees can update only their own basic contact info
@@ -163,18 +181,22 @@ def update_employee(employee_id: int, p: EmployeeUpdate,
     db.commit()
     db.refresh(emp)
     log_action(db, cu.id, "update_employee", "Employee", emp.id,
-               f"Updated: {list(updates.keys())}")
+               f"Updated: {list(updates.keys())}", company_id=cu.company_id)
     return ResponseModel(data=EmployeeOut.model_validate(emp))
 
 
 @router.delete("/{employee_id}", response_model=ResponseModel)
 def terminate_employee(employee_id: int, db: Session = Depends(get_db),
                        cu: User = Depends(require_hr)):
-    emp = db.query(Employee).filter(Employee.id == employee_id).first()
+    emp = db.query(Employee).filter(
+        Employee.id == employee_id,
+        Employee.company_id == cu.company_id,
+    ).first()
     if not emp:
         raise HTTPException(404, "Employee not found")
     emp.employment_status = EmploymentStatus.TERMINATED
     db.commit()
     log_action(db, cu.id, "terminate_employee", "Employee",
-               employee_id, f"Terminated: {emp.employee_code}")
+               employee_id, f"Terminated: {emp.employee_code}",
+               company_id=cu.company_id)
     return ResponseModel(message=f"Employee {emp.employee_code} terminated")

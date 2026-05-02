@@ -146,13 +146,17 @@ def _build_payslip(db: Session, employee: Employee,
     )
 
 def generate_payrun(db: Session, month: int, year: int,
-                    generated_by_id: int) -> Payrun:
-    if db.query(Payrun).filter(Payrun.month == month, Payrun.year == year).first():
+                    generated_by_id: int, company_id: int) -> Payrun:
+    if db.query(Payrun).filter(
+        Payrun.company_id == company_id,
+        Payrun.month == month, Payrun.year == year,
+    ).first():
         raise ValueError(f"Payrun for {month:02d}/{year} already exists.")
 
     first = date(year, month, 1)
     last  = date(year, month, monthrange(year, month)[1])
     payrun = Payrun(
+        company_id=company_id,
         month=month, year=year,
         period_start=datetime.combine(first, datetime.min.time()).replace(tzinfo=timezone.utc),
         period_end=datetime.combine(last, datetime.max.time()).replace(tzinfo=timezone.utc),
@@ -164,7 +168,9 @@ def generate_payrun(db: Session, month: int, year: int,
     db.refresh(payrun)
 
     active = db.query(Employee).filter(
-        Employee.employment_status == EmploymentStatus.ACTIVE).all()
+        Employee.company_id == company_id,
+        Employee.employment_status == EmploymentStatus.ACTIVE,
+    ).all()
     skipped = []
     total_g = total_d = total_n = Decimal("0")
     count = 0
@@ -178,6 +184,7 @@ def generate_payrun(db: Session, month: int, year: int,
             skipped.append(f"{emp.employee_code}: no salary structure")
             continue
         ps = _build_payslip(db, emp, payrun, sal)
+        ps.company_id = company_id
         db.add(ps)
         total_g += ps.gross_earnings
         total_d += ps.total_deductions
@@ -195,16 +202,21 @@ def generate_payrun(db: Session, month: int, year: int,
     return payrun
 
 def amend_payslip(db: Session, payrun_id: int, leave_application_id: int,
-                  reason: str, amended_by_id: int) -> Payslip:
+                  reason: str, amended_by_id: int, company_id: int) -> Payslip:
     from app.models.leave import LeaveApplication
     leave_app = db.query(LeaveApplication).filter(
-        LeaveApplication.id == leave_application_id).first()
+        LeaveApplication.id == leave_application_id,
+        LeaveApplication.company_id == company_id,
+    ).first()
     if not leave_app:
         raise ValueError("Leave application not found")
     if not leave_app.requires_payrun_amendment or leave_app.affects_payrun_id != payrun_id:
         raise ValueError("This leave does not require amendment for the specified payrun")
 
-    payrun = db.query(Payrun).filter(Payrun.id == payrun_id).first()
+    payrun = db.query(Payrun).filter(
+        Payrun.id == payrun_id,
+        Payrun.company_id == company_id,
+    ).first()
     if not payrun:
         raise ValueError("Payrun not found")
 
@@ -229,11 +241,13 @@ def amend_payslip(db: Session, payrun_id: int, leave_application_id: int,
     old_ps.amendment_reason = reason
 
     new_ps = _build_payslip(db, employee, payrun, sal)
+    new_ps.company_id = company_id
     new_ps.is_amended = True
     new_ps.amendment_reason = f"Amendment: {reason}"
     db.add(new_ps)
 
     db.add(PayrunAmendment(
+        company_id=company_id,
         original_payrun_id=payrun_id,
         leave_application_id=leave_application_id,
         reason=reason, amended_by=amended_by_id,

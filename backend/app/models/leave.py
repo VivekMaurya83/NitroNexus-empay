@@ -1,15 +1,22 @@
 from sqlalchemy import (Column, Integer, Numeric, String, Boolean,
-                         Date, DateTime, ForeignKey, Enum as SAEnum, Text)
+                         Date, DateTime, ForeignKey, Enum as SAEnum,
+                         Text, UniqueConstraint)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
 from app.models.enums import LeaveType, LeaveStatus
 
+
 class LeavePolicy(Base):
     __tablename__ = "leave_policies"
+    __table_args__ = (
+        # Leave type must be unique per company (different orgs may define it differently)
+        UniqueConstraint("company_id", "leave_type", name="uq_leave_policies_company_type"),
+    )
 
     id                  = Column(Integer, primary_key=True, index=True)
-    leave_type          = Column(SAEnum(LeaveType), unique=True, nullable=False)
+    company_id          = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
+    leave_type          = Column(SAEnum(LeaveType), nullable=False)
     max_days_per_year   = Column(Integer, default=0)
     is_paid             = Column(Boolean, default=True)
     carry_forward       = Column(Boolean, default=False)
@@ -23,6 +30,7 @@ class LeaveAllocation(Base):
     __tablename__ = "leave_allocations"
 
     id            = Column(Integer, primary_key=True, index=True)
+    company_id    = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     employee_id   = Column(Integer, ForeignKey("employees.id"), nullable=False)
     policy_id     = Column(Integer, ForeignKey("leave_policies.id"), nullable=False)
     year          = Column(Integer, nullable=False)
@@ -39,6 +47,7 @@ class LeaveApplication(Base):
     __tablename__ = "leave_applications"
 
     id                        = Column(Integer, primary_key=True, index=True)
+    company_id                = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     employee_id               = Column(Integer, ForeignKey("employees.id"), nullable=False)
     leave_type                = Column(SAEnum(LeaveType), nullable=False)
     start_date                = Column(Date, nullable=False)

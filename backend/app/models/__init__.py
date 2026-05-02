@@ -1,3 +1,4 @@
+from app.models.company import Company
 from app.models.user import User
 from app.models.employee import Employee, Department, Designation
 from app.models.salary import SalaryStructure

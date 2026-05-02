@@ -7,6 +7,7 @@ class SalaryStructure(Base):
     __tablename__ = "salary_structures"
 
     id                      = Column(Integer, primary_key=True, index=True)
+    company_id              = Column(Integer, ForeignKey("companies.id"), nullable=True, index=True)
     employee_id             = Column(Integer, ForeignKey("employees.id"), nullable=False)
     basic                   = Column(Numeric(12, 2), nullable=False, default=0)
     hra                     = Column(Numeric(12, 2), nullable=False, default=0)

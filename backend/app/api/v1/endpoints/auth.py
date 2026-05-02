@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.security import (hash_password, verify_password,
                                 create_access_token, create_refresh_token,
                                 decode_token)
+from app.models.company import Company
 from app.models.user import User
 from app.models.enums import UserRole
 from app.schemas.auth import (RegisterRequest, LoginRequest,
@@ -23,7 +24,31 @@ def register(p: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == p.email).first():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             detail="Email already registered")
+
+    company_id = p.company_id
+
+    # Admin registering without a company_id → auto-create a new company
+    if p.role == UserRole.ADMIN and company_id is None:
+        new_company = Company(name=f"{p.email.split('@')[0]}'s Organisation")
+        db.add(new_company)
+        db.flush()          # get the id without committing yet
+        company_id = new_company.id
+    elif company_id is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="company_id is required for non-Admin registrations",
+        )
+    else:
+        # Validate the company exists and is active
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if not company or not company.is_active:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or inactive company_id",
+            )
+
     user = User(
+        company_id=company_id,
         email=p.email,
         hashed_password=hash_password(p.password),
         role=p.role,
@@ -33,10 +58,12 @@ def register(p: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     log_action(db, user.id, "register", "User", user.id,
-               f"New user registered: {user.email} as {user.role.value}")
+               f"New user registered: {user.email} as {user.role.value}",
+               company_id=company_id)
     return ResponseModel(message="User registered successfully",
                          data={"user_id": user.id, "email": user.email,
-                               "role": user.role.value})
+                               "role": user.role.value,
+                               "company_id": user.company_id})
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -50,13 +77,15 @@ def login(p: LoginRequest, db: Session = Depends(get_db)):
                             detail="Account is deactivated")
     user.last_login = datetime.now(timezone.utc)
     db.commit()
-    log_action(db, user.id, "login", "User", user.id, f"Login: {user.email}")
+    log_action(db, user.id, "login", "User", user.id, f"Login: {user.email}",
+               company_id=user.company_id)
     employee_id = user.employee.id if user.employee else None
     return TokenResponse(
         access_token=create_access_token(user.id, {"role": user.role.value}),
         refresh_token=create_refresh_token(user.id),
         role=user.role,
         user_id=user.id,
+        company_id=user.company_id,
         employee_id=employee_id,
     )
 
@@ -75,6 +104,7 @@ def login_form(form: OAuth2PasswordRequestForm = Depends(),
         refresh_token=create_refresh_token(user.id),
         role=user.role,
         user_id=user.id,
+        company_id=user.company_id,
         employee_id=employee_id,
     )
 
@@ -95,6 +125,7 @@ def refresh(p: RefreshRequest, db: Session = Depends(get_db)):
         refresh_token=create_refresh_token(user.id),
         role=user.role,
         user_id=user.id,
+        company_id=user.company_id,
         employee_id=employee_id,
     )
 
@@ -106,6 +137,7 @@ def me(current_user: User = Depends(get_current_user)):
         "user_id":     current_user.id,
         "email":       current_user.email,
         "role":        current_user.role.value,
+        "company_id":  current_user.company_id,
         "is_active":   current_user.is_active,
         "last_login":  str(current_user.last_login) if current_user.last_login else None,
         "employee_id": employee_id,
@@ -129,7 +161,8 @@ def change_password(
     current_user.hashed_password = hash_password(new_pw)
     db.commit()
     log_action(db, current_user.id, "change_password", "User",
-               current_user.id, "Password changed")
+               current_user.id, "Password changed",
+               company_id=current_user.company_id)
     return ResponseModel(message="Password changed successfully")
 
 
@@ -142,11 +175,15 @@ def deactivate_user(
     from app.models.enums import UserRole
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Admin only")
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.company_id == current_user.company_id,   # admins can only deactivate own-company users
+    ).first()
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="User not found")
     user.is_active = False
     db.commit()
     log_action(db, current_user.id, "deactivate_user", "User",
-               user_id, f"Deactivated: {user.email}")
+               user_id, f"Deactivated: {user.email}",
+               company_id=current_user.company_id)
     return ResponseModel(message=f"User {user.email} deactivated")
