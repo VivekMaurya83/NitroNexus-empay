@@ -24,7 +24,7 @@ router = APIRouter(prefix="/leaves", tags=["Leaves"])
 
 @router.post("/policies", response_model=ResponseModel, status_code=201)
 def create_policy(p: LeavePolicyCreate, db: Session = Depends(get_db),
-                  cu: User = Depends(require_hr)):
+                  cu: User = Depends(require_hr_or_payroll)):
     existing = db.query(LeavePolicy).filter(
         LeavePolicy.company_id == cu.company_id,
         LeavePolicy.leave_type == p.leave_type,
@@ -51,7 +51,7 @@ def list_policies(db: Session = Depends(get_db),
 
 @router.post("/allocations", response_model=ResponseModel, status_code=201)
 def create_allocation(p: LeaveAllocationCreate, db: Session = Depends(get_db),
-                      cu: User = Depends(require_hr)):
+                      cu: User = Depends(require_hr_or_payroll)):
     existing = db.query(LeaveAllocation).filter(
         LeaveAllocation.company_id == cu.company_id,
         LeaveAllocation.employee_id == p.employee_id,

@@ -54,6 +54,7 @@ export default function DetailedPayslip() {
     { label:'PF Employee',     amount: payslip.pfEmployee },
     { label:'Professional Tax',amount: payslip.professionalTax },
     { label:'TDS',             amount: payslip.tds },
+    { label:'Loss of Pay (LOP)', amount: payslip.lopDeduction },
     { label:'Other Deductions',amount: payslip.otherDeductions },
   ].filter(d => d.amount > 0);
 
@@ -98,6 +99,18 @@ export default function DetailedPayslip() {
               <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--on-surface-variant)', marginBottom: 2 }}>Employee Name</div>
               <div style={{ fontWeight: 700, fontSize: 'var(--font-size-base)' }}>{payslip.employee}</div>
             </div>
+            {payslip.employeeCode && (
+              <div style={{ marginBottom: 'var(--space-3)' }}>
+                <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--on-surface-variant)', marginBottom: 2 }}>Employee Code</div>
+                <div style={{ fontWeight: 500 }}>{payslip.employeeCode}</div>
+              </div>
+            )}
+            {payslip.period && (
+              <div>
+                <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--on-surface-variant)', marginBottom: 2 }}>Pay Period</div>
+                <div style={{ fontWeight: 600 }}>{payslip.period}</div>
+              </div>
+            )}
           </div>
           <div>
             <div style={{ marginBottom: 'var(--space-3)' }}>

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, CalendarDays, DollarSign,
+  LayoutDashboard, Users, Clock, CalendarDays, Calendar, DollarSign,
   Settings, ChevronLeft, ChevronRight, LogOut, Building2,
   FileText, UserPlus, SlidersHorizontal, UserCheck,
   BarChart2, Bell, MonitorSmartphone, ShieldCheck
@@ -18,6 +18,7 @@ const NAV = {
     { icon: Users,             label: 'HR Directory',     path: '/hr-directory'         },
     { icon: Clock,             label: 'Attendance',       path: '/attendance'           },
     { icon: CalendarDays,      label: 'Leave',            path: '/leave'                },
+    { icon: Calendar,          label: 'Holidays',         path: '/hr/holidays'          },
     { icon: DollarSign,        label: 'Payroll',          path: '/payroll'              },
     { icon: ShieldCheck,       label: 'Company Users',    path: '/admin/settings'       },
   ],
@@ -27,6 +28,7 @@ const NAV = {
     { icon: UserPlus,          label: 'Add Employee',     path: '/hr/add-employee'      },
     { icon: Clock,             label: 'Attendance',       path: '/attendance'           },
     { icon: CalendarDays,      label: 'Leave',            path: '/leave'                },
+    { icon: Calendar,          label: 'Holidays',         path: '/hr/holidays'          },
   ],
   [ROLES.PAYROLL]: [
     { icon: MonitorSmartphone, label: 'Status Board',     path: '/status-board'         },

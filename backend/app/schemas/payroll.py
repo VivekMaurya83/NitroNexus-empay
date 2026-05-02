@@ -53,6 +53,9 @@ class PayslipOut(BaseModel):
     id: int
     payrun_id: int
     employee_id: int
+    # Pay period (populated from the joined Payrun)
+    month: Optional[int] = None
+    year: Optional[int] = None
     total_working_days: int
     days_present: float
     days_absent: float
@@ -71,6 +74,7 @@ class PayslipOut(BaseModel):
     pf_employer: float
     professional_tax: float
     tds: float
+    lop_deduction: Optional[float] = 0
     other_deductions: float
     total_deductions: float
     net_pay: float

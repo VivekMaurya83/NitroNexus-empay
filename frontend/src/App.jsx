@@ -20,6 +20,7 @@ import AdminSetup          from './pages/admin/AdminSetup';
 import HRDirectory    from './pages/hr/HRDirectory';
 import AddEmployee    from './pages/hr/AddEmployee';
 import LeaveAllocation from './pages/hr/LeaveAllocation';
+import HolidayCalendar from './pages/hr/HolidayCalendar';
 
 // Employee
 import EmployeePortal    from './pages/employee/EmployeePortal';
@@ -97,6 +98,7 @@ export default function App() {
           {/* Admin + HR */}
           <Route path="/hr-directory"        element={<RoleRoute element={<HRDirectory />}    allowed={AH}  />} />
           <Route path="/hr/leave-allocation" element={<RoleRoute element={<LeaveAllocation />}allowed={AH}  />} />
+          <Route path="/hr/holidays"         element={<RoleRoute element={<HolidayCalendar />}allowed={AH}  />} />
 
           {/* Add Employee — Admin + HR + Payroll */}
           <Route path="/hr/add-employee"     element={<RoleRoute element={<AddEmployee />}    allowed={AHP} />} />

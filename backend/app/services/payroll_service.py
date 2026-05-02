@@ -322,7 +322,7 @@ def generate_payrun(db: Session, month: int, year: int,
         generated_by=generated_by_id,
     )
     db.add(payrun)
-    db.commit()
+    db.flush()
     db.refresh(payrun)
 
     active = db.query(Employee).filter(

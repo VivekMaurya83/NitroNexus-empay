@@ -8,7 +8,7 @@ from app.models.enums import HolidayType
 from app.schemas.holiday import (HolidayCreate, HolidayUpdate,
                                   HolidayOut, HolidayBulkCreate)
 from app.schemas.common import ResponseModel
-from app.api.v1.deps import get_current_user, require_hr
+from app.api.v1.deps import get_current_user, require_hr_or_payroll
 from app.services import holiday_service
 from app.services.audit_service import log_action
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/holidays", tags=["Holidays"])
 
 @router.post("/", response_model=ResponseModel, status_code=201)
 def create_holiday(p: HolidayCreate, db: Session = Depends(get_db),
-                   cu: User = Depends(require_hr)):
+                   cu: User = Depends(require_hr_or_payroll)):
     try:
         h = holiday_service.create_holiday(db, cu.company_id, p)
     except ValueError as e:
@@ -29,7 +29,7 @@ def create_holiday(p: HolidayCreate, db: Session = Depends(get_db),
 
 @router.post("/bulk", response_model=ResponseModel, status_code=201)
 def bulk_create_holidays(p: HolidayBulkCreate, db: Session = Depends(get_db),
-                          cu: User = Depends(require_hr)):
+                          cu: User = Depends(require_hr_or_payroll)):
     result = holiday_service.bulk_create_holidays(db, cu.company_id, p)
     log_action(db, cu.id, "bulk_create_holidays", "Holiday", 0,
                f"Created {len(result['created'])}, skipped {len(result['skipped'])}")
@@ -43,7 +43,7 @@ def bulk_create_holidays(p: HolidayBulkCreate, db: Session = Depends(get_db),
 
 @router.post("/seed-indian/{year}", response_model=ResponseModel)
 def seed_indian_holidays(year: int, db: Session = Depends(get_db),
-                          cu: User = Depends(require_hr)):
+                          cu: User = Depends(require_hr_or_payroll)):
     if year < 2020 or year > 2030:
         raise HTTPException(400, "Year must be between 2020 and 2030")
     created = holiday_service.seed_indian_holidays(db, cu.company_id, year)
@@ -71,7 +71,7 @@ def list_holidays(
 @router.patch("/{holiday_id}", response_model=ResponseModel)
 def update_holiday(holiday_id: int, p: HolidayUpdate,
                    db: Session = Depends(get_db),
-                   cu: User = Depends(require_hr)):
+                   cu: User = Depends(require_hr_or_payroll)):
     from app.models.holiday import Holiday
     h = db.query(Holiday).filter(
         Holiday.id == holiday_id,
@@ -91,7 +91,7 @@ def update_holiday(holiday_id: int, p: HolidayUpdate,
 
 @router.delete("/{holiday_id}", response_model=ResponseModel)
 def delete_holiday(holiday_id: int, db: Session = Depends(get_db),
-                   cu: User = Depends(require_hr)):
+                   cu: User = Depends(require_hr_or_payroll)):
     deleted = holiday_service.delete_holiday(
         db, holiday_id, cu.company_id)
     if not deleted:

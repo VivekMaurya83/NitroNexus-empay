@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Response, BackgroundTasks, Query
 from sqlalchemy.orm import Session
+from typing import Optional
 from app.core.database import get_db
 from app.models.user import User
 from app.models.payroll import Payrun, Payslip, PayrollConfig
@@ -79,6 +80,40 @@ def list_payslips(payrun_id: int, db: Session = Depends(get_db),
         out = PayslipOut.model_validate(s)
         out.employee_name = f"{s.employee.first_name} {s.employee.last_name}"
         out.employee_code = s.employee.employee_code
+        out.month = s.payrun.month
+        out.year  = s.payrun.year
+        res.append(out)
+    return ResponseModel(data=res)
+
+
+# ── Global payslip list (filterable by month/year) ────────────────────────────
+@router.get("/payslips", response_model=ResponseModel)
+def list_all_payslips(
+    month: Optional[int] = Query(None, ge=1, le=12),
+    year:  Optional[int] = Query(None, ge=2000),
+    db: Session = Depends(get_db),
+    cu: User = Depends(get_current_user),
+):
+    """List all payslips for the company, with optional month/year filter."""
+    q = (db.query(Payslip)
+         .join(Payrun, Payslip.payrun_id == Payrun.id)
+         .filter(Payrun.company_id == cu.company_id))
+    if cu.role == UserRole.EMPLOYEE:
+        if not cu.employee:
+            raise HTTPException(400, "No employee profile")
+        q = q.filter(Payslip.employee_id == cu.employee.id)
+    if month:
+        q = q.filter(Payrun.month == month)
+    if year:
+        q = q.filter(Payrun.year == year)
+    slips = q.order_by(Payrun.year.desc(), Payrun.month.desc()).all()
+    res = []
+    for s in slips:
+        out = PayslipOut.model_validate(s)
+        out.employee_name = f"{s.employee.first_name} {s.employee.last_name}"
+        out.employee_code = s.employee.employee_code
+        out.month = s.payrun.month
+        out.year  = s.payrun.year
         res.append(out)
     return ResponseModel(data=res)
 
@@ -96,6 +131,8 @@ def get_payslip(payslip_id: int, db: Session = Depends(get_db),
     out = PayslipOut.model_validate(ps)
     out.employee_name = f"{ps.employee.first_name} {ps.employee.last_name}"
     out.employee_code = ps.employee.employee_code
+    out.month = ps.payrun.month
+    out.year  = ps.payrun.year
     return ResponseModel(data=out)
 
 

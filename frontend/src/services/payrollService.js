@@ -34,10 +34,13 @@ function adaptPayrun(p) {
 }
 
 function adaptPayslip(s) {
+  const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return {
     id: s.id, payrunId: s.payrun_id, employeeId: s.employee_id,
     employee: s.employee_name || `Employee #${s.employee_id}`,
     employeeCode: s.employee_code,
+    month: s.month, year: s.year,
+    period: (s.month && s.year) ? `${MONTHS[s.month]} ${s.year}` : null,
     totalWorkingDays: s.total_working_days, daysPresent: s.days_present,
     daysAbsent: s.days_absent, paidLeaveDays: s.paid_leave_days,
     unpaidLeaveDays: s.unpaid_leave_days, effectivePaidDays: s.effective_paid_days,
@@ -45,7 +48,8 @@ function adaptPayslip(s) {
     specialAllowance: s.special_allowance, lta: s.lta, bonus: s.bonus,
     grossEarnings: s.gross_earnings, pfEmployee: s.pf_employee,
     pfEmployer: s.pf_employer, professionalTax: s.professional_tax,
-    tds: s.tds, otherDeductions: s.other_deductions,
+    tds: s.tds, lopDeduction: s.lop_deduction || 0,
+    otherDeductions: s.other_deductions,
     totalDeductions: s.total_deductions, netPay: s.net_pay,
     isAnomalous: s.is_anomalous, anomalyFlags: s.anomaly_flags,
     isAmended: s.is_amended, amendmentReason: s.amendment_reason,
@@ -77,6 +81,15 @@ export async function updateSalaryStructure(employeeId, payload) {
   return adaptSalary(data);
 }
 
+/**
+ * Fetch the recommended salary component breakdown for a given monthly CTC.
+ * Uses the company's PayrollConfig ratios (read-only — nothing is saved).
+ */
+export async function getCtcBreakdown(ctc) {
+  const data = await api.get(`/salary/breakdown?ctc=${encodeURIComponent(ctc)}`);
+  return data; // { basic, hra, conveyance, medical, special_allowance, lta, bonus, hra_pct_used }
+}
+
 // ── Payruns ────────────────────────────────────────────────────────────────────
 export async function getPayruns() {
   if (USE_MOCK) return payrolls;
@@ -95,6 +108,17 @@ export async function getPendingAmendments() {
 }
 
 // ── Payslips ───────────────────────────────────────────────────────────────────
+/** List all company payslips, optionally filtered by month and/or year. */
+export async function getAllPayslips({ month, year } = {}) {
+  if (USE_MOCK) return [];
+  const params = new URLSearchParams();
+  if (month) params.set('month', month);
+  if (year)  params.set('year',  year);
+  const qs = params.toString() ? `?${params}` : '';
+  const data = await api.get(`/payroll/payslips${qs}`);
+  return (data || []).map(adaptPayslip);
+}
+
 export async function getPayslipsForRun(payrunId) {
   if (USE_MOCK) return [];
   const data = await api.get(`/payroll/runs/${payrunId}/payslips`);

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from app.core.database import get_db
 from app.models.user import User
@@ -11,6 +12,48 @@ from app.api.v1.deps import get_current_user, require_hr_or_payroll
 from app.services.audit_service import log_action
 
 router = APIRouter(prefix="/salary", tags=["Salary"])
+
+
+@router.get("/breakdown", response_model=ResponseModel)
+def get_ctc_breakdown(
+    ctc: float = Query(..., gt=0, description="Total monthly CTC to break down"),
+    db: Session = Depends(get_db),
+    cu: User = Depends(require_hr_or_payroll),
+):
+    """
+    Pure read-only helper. Given a total monthly CTC figure, returns the
+    recommended split into salary components using the company's PayrollConfig
+    ratios. Falls back to statutory defaults if no config exists.
+    Nothing is saved until the caller explicitly POSTs to /salary/.
+    """
+    from app.models.payroll import PayrollConfig
+    config = db.query(PayrollConfig).filter(
+        PayrollConfig.company_id == cu.company_id
+    ).first()
+
+    hra_pct    = float(config.hra_percent)     if config else 0.40
+    conv_fixed = float(config.conveyance_fixed) if config else 1600.0
+    med_fixed  = float(config.medical_fixed)    if config else 1250.0
+
+    basic             = round(ctc * 0.50, 2)
+    hra               = round(basic * hra_pct, 2)
+    conveyance        = conv_fixed
+    medical           = med_fixed
+    special_allowance = round(max(0.0, ctc - basic - hra - conveyance - medical), 2)
+
+    return ResponseModel(data={
+        "basic":             basic,
+        "hra":               hra,
+        "conveyance":        conveyance,
+        "medical":           medical,
+        "special_allowance": special_allowance,
+        "lta":               0,
+        "bonus":             0,
+        # informational
+        "ctc":               ctc,
+        "hra_pct_used":      hra_pct,
+    })
+
 
 
 @router.post("/", response_model=ResponseModel, status_code=201)
