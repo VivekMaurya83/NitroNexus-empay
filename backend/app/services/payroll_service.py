@@ -206,13 +206,20 @@ def _build_payslip(db: Session, employee: Employee,
     # ── MONTHLY_FIXED branch (default) ───────────────────────────────────────
     weekends      = get_weekend_weekdays(db, payrun.company_id)
     holiday_dates = get_holiday_dates(db, payrun.company_id, month, year)
-    total_wd = get_working_days(
+    
+    period_first = date(year, month, 1)
+    period_last  = date(year, month, monthrange(year, month)[1])
+
+    # Company working days for the full month (used as the salary denominator)
+    month_working_days = get_working_days(
+        db, month, year, period_first, period_last, holiday_dates, weekends=weekends
+    )
+
+    # Employee expected working days (used to compute true days_absent)
+    expected_working_days = get_working_days(
         db, month, year, employee.date_of_joining,
         employee.date_of_leaving, holiday_dates, weekends=weekends
     )
-
-    period_first = date(year, month, 1)
-    period_last  = date(year, month, monthrange(year, month)[1])
 
     # ── Cross-month leave overlap ────────────────────────────────────────────
     overlapping_leaves = db.query(LeaveApplication).filter(
@@ -238,10 +245,10 @@ def _build_payslip(db: Session, employee: Employee,
             unpaid_days += intersection_days
     # ────────────────────────────────────────────────────────────────────────
 
-    eff_paid    = min(days_present + paid_days, Decimal(str(total_wd)))
+    eff_paid    = min(days_present + paid_days, Decimal(str(expected_working_days)))
     days_absent = max(Decimal("0"),
-                      Decimal(str(total_wd)) - eff_paid - unpaid_days)
-    ratio = (eff_paid / Decimal(str(total_wd))) if total_wd > 0 else Decimal("0")
+                      Decimal(str(expected_working_days)) - eff_paid - unpaid_days)
+    ratio = (eff_paid / Decimal(str(month_working_days))) if month_working_days > 0 else Decimal("0")
 
     # Prorate each component independently (Step 4 — Reference Guide)
     basic = _r2(Decimal(str(salary.basic))             * ratio)
@@ -260,7 +267,7 @@ def _build_payslip(db: Session, employee: Employee,
     daily_ctc   = (Decimal(str(salary.basic + salary.hra +
                                salary.conveyance + salary.medical +
                                salary.special_allowance + salary.lta))
-                   / Decimal(str(total_wd))) if total_wd > 0 else Decimal("0")
+                   / Decimal(str(month_working_days))) if month_working_days > 0 else Decimal("0")
     lop_deduction = _r2(daily_ctc * unpaid_days)
 
     pf_e      = (_r2(basic * Decimal(str(settings.PF_RATE)))
@@ -284,7 +291,7 @@ def _build_payslip(db: Session, employee: Employee,
 
     return Payslip(
         payrun_id=payrun.id, employee_id=employee.id,
-        total_working_days=total_wd, days_present=days_present,
+        total_working_days=month_working_days, days_present=days_present,
         days_absent=days_absent, paid_leave_days=paid_days,
         unpaid_leave_days=unpaid_days, effective_paid_days=eff_paid,
         basic=basic, hra=hra, conveyance=conv, medical=med,
