@@ -318,3 +318,17 @@ def send_leave_status_update_email(to: str, name: str, leave_type: str, from_dat
     return send_email(to, subject, _base_template(content))
 
 
+def send_nudge_email(to: str, name: str, message: str) -> bool:
+    """Send an action-required nudge email to an employee."""
+    content = f"""
+    <p>Hello <strong>{name}</strong>,</p>
+    <div class="warning" style="border-left-color: #f59e0b; color: #fbbf24;">
+      <h3 style="margin-top: 0; color: #f59e0b;">Action Required</h3>
+      <p style="margin-bottom: 0;">{message}</p>
+    </div>
+    <p style="margin-top: 24px;">Please log into your EmPay portal immediately to resolve this issue.</p>
+    """
+    subject = "EmPay — Action Required"
+    return send_email(to, subject, _base_template(content))
+
+

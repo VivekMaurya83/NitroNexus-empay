@@ -12,6 +12,7 @@ from app.schemas.employee import (
     DepartmentCreate, DepartmentOut,
     DesignationCreate, DesignationOut,
 )
+from pydantic import BaseModel
 from app.schemas.common import ResponseModel
 from app.api.v1.deps import get_current_user, require_hr, require_admin
 from app.services.audit_service import log_action
@@ -248,7 +249,7 @@ def update_employee(employee_id: int, p: EmployeeUpdate,
 
 
 @router.delete("/{employee_id}", response_model=ResponseModel)
-def terminate_employee(employee_id: int, db: Session = Depends(get_db),
+def delete_employee(employee_id: int, db: Session = Depends(get_db),
                        cu: User = Depends(require_hr)):
     emp = db.query(Employee).filter(
         Employee.id == employee_id,
@@ -256,9 +257,54 @@ def terminate_employee(employee_id: int, db: Session = Depends(get_db),
     ).first()
     if not emp:
         raise HTTPException(404, "Employee not found")
-    emp.employment_status = EmploymentStatus.TERMINATED
+        
+    user_to_delete = db.query(User).filter(User.id == emp.user_id).first()
+    db.delete(emp)
+    if user_to_delete:
+        db.delete(user_to_delete)
+        
     db.commit()
-    log_action(db, cu.id, "terminate_employee", "Employee",
-               employee_id, f"Terminated: {emp.employee_code}",
+    log_action(db, cu.id, "delete_employee", "Employee",
+               employee_id, f"Deleted: {emp.employee_code}",
                company_id=cu.company_id)
-    return ResponseModel(message=f"Employee {emp.employee_code} terminated")
+    return ResponseModel(message=f"Employee {emp.employee_code} deleted")
+
+
+class NudgeRequest(BaseModel):
+    type: str
+
+@router.post("/{employee_id}/nudge", response_model=ResponseModel)
+def send_employee_nudge(
+    employee_id: int,
+    payload: NudgeRequest,
+    db: Session = Depends(get_db),
+    cu: User = Depends(require_hr)
+):
+    emp = db.query(Employee).filter(
+        Employee.id == employee_id,
+        Employee.company_id == cu.company_id,
+    ).first()
+    if not emp:
+        raise HTTPException(404, "Employee not found")
+        
+    from app.services.whatsapp_service import send_whatsapp_message
+    from app.services.email_service import send_nudge_email
+    
+    message = "Please log into EmPay to update your missing Bank Details."
+    if payload.type == "no_bank_details":
+        message = "Action Required: Your Bank Details are missing. Your salary cannot be processed until you update them in the EmPay portal."
+    
+    if emp.phone:
+        wa_msg = f"⚠️ *EmPay Alert*\n\nHello {emp.first_name},\n{message}"
+        send_whatsapp_message(emp.phone, wa_msg)
+        
+    if emp.user and emp.user.email:
+        send_nudge_email(
+            to=emp.user.email,
+            name=f"{emp.first_name} {emp.last_name}",
+            message=message
+        )
+        
+    log_action(db, cu.id, "nudge_employee", "Employee", emp.id,
+               f"Sent nudge ({payload.type})", company_id=cu.company_id)
+    return ResponseModel(message="Nudge sent successfully")
