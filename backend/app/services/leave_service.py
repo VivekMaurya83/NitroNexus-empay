@@ -10,17 +10,29 @@ from app.services.whatsapp_service import send_whatsapp_message
 from app.services.email_service import send_leave_status_email
 from app.models.employee import Employee
 from app.services import email_service
+from app.services.holiday_service import count_working_days_in_range
 
 
-def _count_days(start: date, end: date) -> float:
-    return float((end - start).days + 1)
+def _count_working_days(db: Session, company_id: int, start: date, end: date) -> float:
+    """Returns working days between start and end (inclusive), excluding weekends
+    and non-optional company holidays.  Weekend structure is derived dynamically
+    from PayrollConfig so a 5-day or 6-day week is handled automatically."""
+    return count_working_days_in_range(db, company_id, start, end)
 
 
 def apply_leave(db: Session, employee_id: int,
                 p: LeaveApplicationCreate, company_id: int) -> LeaveApplication:
     if p.end_date < p.start_date:
         raise ValueError("end_date cannot be before start_date")
-    total = _count_days(p.start_date, p.end_date)
+
+    # Count only genuine working days (weekends + holidays excluded)
+    total = _count_working_days(db, company_id, p.start_date, p.end_date)
+    if total == 0:
+        raise ValueError(
+            "The selected date range contains no working days "
+            "(all days fall on weekends or public holidays)."
+        )
+
     policy = db.query(LeavePolicy).filter(
         LeavePolicy.company_id == company_id,
         LeavePolicy.leave_type == p.leave_type,
@@ -35,7 +47,7 @@ def apply_leave(db: Session, employee_id: int,
         if alloc and float(alloc.remaining_days) < total:
             raise ValueError(
                 f"Insufficient {p.leave_type.value} balance. "
-                f"Requested: {total}, Available: {float(alloc.remaining_days)}"
+                f"Requested: {total} working day(s), Available: {float(alloc.remaining_days)}"
             )
     app = LeaveApplication(
         company_id=company_id,
@@ -235,13 +247,49 @@ def _deduct_balance(db: Session, app: LeaveApplication, company_id: int):
 
 
 def _check_amendment_needed(db: Session, app: LeaveApplication, company_id: int):
-    """Flag leave if a payrun was already completed for the affected month."""
-    completed_payrun = db.query(Payrun).filter(
-        Payrun.company_id == company_id,
-        Payrun.month == app.start_date.month,
-        Payrun.year  == app.start_date.year,
-        Payrun.status.in_([PayrunStatus.COMPLETED, PayrunStatus.AMENDED]),
-    ).first()
-    if completed_payrun:
+    """Flag leave if a completed payrun already exists for ANY month that this
+    leave spans.  A leave from Jan 28 – Feb 3 must flag both January's and
+    February's payruns, not just January's.
+
+    The primary (first chronological) affected payrun id is stored on the
+    leave application to preserve backward-compatibility with the amendment
+    endpoint.  All other affected payruns are logged as a warning.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Collect every (month, year) pair spanned by this leave
+    spanned: list[tuple[int, int]] = []
+    cur = date(app.start_date.year, app.start_date.month, 1)
+    end_ym = (app.end_date.year, app.end_date.month)
+    while (cur.year, cur.month) <= end_ym:
+        spanned.append((cur.month, cur.year))
+        # Advance to first day of next month
+        if cur.month == 12:
+            cur = date(cur.year + 1, 1, 1)
+        else:
+            cur = date(cur.year, cur.month + 1, 1)
+
+    primary_payrun = None
+    for month, year in spanned:
+        pr = db.query(Payrun).filter(
+            Payrun.company_id == company_id,
+            Payrun.month == month,
+            Payrun.year  == year,
+            Payrun.status.in_([PayrunStatus.COMPLETED, PayrunStatus.AMENDED]),
+        ).first()
+        if pr:
+            if primary_payrun is None:
+                primary_payrun = pr
+            else:
+                # Secondary month — cannot store multiple ids in the current
+                # schema, so log a warning so payroll officers are aware.
+                logger.warning(
+                    f"[LEAVE AMENDMENT] Leave application {app.id} spans into "
+                    f"{month:02d}/{year} which also has a completed payrun "
+                    f"(id={pr.id}). A separate amendment must be raised manually."
+                )
+
+    if primary_payrun:
         app.requires_payrun_amendment = True
-        app.affects_payrun_id = completed_payrun.id
+        app.affects_payrun_id = primary_payrun.id
