@@ -83,9 +83,10 @@ export async function manualEntry(payload) {
 }
 
 // ── Today's status board ───────────────────────────────────────────────────────
-export async function getTodayStatusBoard(allEmployees = null) {
+export async function getTodayStatusBoard(dateStr = null, allEmployees = null) {
   if (USE_MOCK) return todayAttendance;
-  const records = await api.get('/attendance/today');
+  const endpoint = dateStr ? `/attendance/today?date=${dateStr}` : '/attendance/today';
+  const records = await api.get(endpoint);
   // records is an array for HR/Admin, single record or null for Employee
   const list = Array.isArray(records) ? records : (records ? [records] : []);
   

@@ -111,3 +111,7 @@ export async function getDesignations() {
 export async function createDesignation(data) {
   return api.post('/employees/designations', data);
 }
+
+export async function updateDepartment(deptId, data) {
+  return api.patch(`/employees/departments/${deptId}`, data);
+}

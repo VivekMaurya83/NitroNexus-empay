@@ -30,17 +30,33 @@ export default function AttendanceTracker() {
   const timeStr = now.toLocaleTimeString('en-IN',{ hour:'2-digit', minute:'2-digit', hour12:true });
   const dateStr = now.toLocaleDateString('en-IN',{ weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
+  const [selectedMonth, setSelectedMonth] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`);
+  const [adminDate, setAdminDate] = useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`);
+
   useEffect(() => {
     if (isEmployee && user?.employeeId) {
       getMyTodayRecord().then(r => setTodayRecord(r));
-      getMonthlySummary(user.employeeId, now.getMonth()+1, now.getFullYear()).then(setMySummary);
-      const start = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-      const localDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      getAttendanceRange(user.employeeId, start, localDateStr).then(setMyLogs);
-    } else {
-      getTodayStatusBoard().then(setAllLogs);
     }
   }, [isEmployee, user?.employeeId]);
+
+  useEffect(() => {
+    if (isEmployee && user?.employeeId) {
+      const [y, m] = selectedMonth.split('-');
+      getMonthlySummary(user.employeeId, parseInt(m), parseInt(y)).then(setMySummary);
+      const start = `${selectedMonth}-01`;
+      const isCurrentMonth = selectedMonth === `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      const end = isCurrentMonth 
+        ? `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+        : new Date(y, m, 0).toISOString().split('T')[0];
+      getAttendanceRange(user.employeeId, start, end).then(setMyLogs);
+    }
+  }, [isEmployee, user?.employeeId, selectedMonth]);
+
+  useEffect(() => {
+    if (!isEmployee) {
+      getTodayStatusBoard(adminDate).then(setAllLogs);
+    }
+  }, [isEmployee, adminDate]);
 
   const handleClockIn = async () => {
     if (!user?.employeeId) return;
@@ -124,7 +140,16 @@ export default function AttendanceTracker() {
         </div>
 
         <motion.div className="card" initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.3 }}>
-          <div className="card-header"><div className="card-title">Attendance History</div></div>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card-title">Attendance History</div>
+            <input 
+              type="month" 
+              className="form-select" 
+              style={{ width: 'auto', padding: '6px 12px', fontSize: 'var(--font-size-sm)' }} 
+              value={selectedMonth} 
+              onChange={e => setSelectedMonth(e.target.value)} 
+            />
+          </div>
           <div className="table-container">
             <table className="data-table">
               <thead><tr><th>Date</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Remarks</th><th>Status</th></tr></thead>
@@ -152,11 +177,20 @@ export default function AttendanceTracker() {
     <div>
       <PremiumHeader 
         title="Attendance Management" 
-        subtitle="Today's check-in status for all employees"
+        subtitle="Daily check-in status for all employees"
         actionRight={
-          <motion.button className="btn" style={{ background: '#fff', color: 'var(--primary)' }} whileHover={{ scale:1.02 }}>
-            <Download size={16}/> Export
-          </motion.button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input 
+              type="date" 
+              className="form-select" 
+              style={{ width: 'auto', padding: '6px 12px', fontSize: 'var(--font-size-sm)' }} 
+              value={adminDate} 
+              onChange={e => setAdminDate(e.target.value)} 
+            />
+            <motion.button className="btn" style={{ background: '#fff', color: 'var(--primary)' }} whileHover={{ scale:1.02 }}>
+              <Download size={16}/> Export
+            </motion.button>
+          </div>
         }
       />
 

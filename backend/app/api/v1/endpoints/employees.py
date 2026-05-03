@@ -82,6 +82,26 @@ def delete_department(dept_id: int, db: Session = Depends(get_db),
     return ResponseModel(message="Department deleted")
 
 
+@router.patch("/departments/{dept_id}", response_model=ResponseModel)
+def update_department(dept_id: int, p: DepartmentCreate,
+                      db: Session = Depends(get_db),
+                      cu: User = Depends(require_hr)):
+    dept = db.query(Department).filter(
+        Department.id == dept_id,
+        Department.company_id == cu.company_id,
+    ).first()
+    if not dept:
+        raise HTTPException(404, "Department not found")
+    for field, value in p.model_dump(exclude_none=True).items():
+        setattr(dept, field, value)
+    db.commit()
+    db.refresh(dept)
+    log_action(db, cu.id, "update_department", "Department", dept.id,
+               f"Updated: {dept.name}", company_id=cu.company_id)
+    return ResponseModel(data=DepartmentOut.model_validate(dept))
+
+
+
 # ── Designations ──────────────────────────────────────────────────────────────
 
 @router.post("/designations", response_model=ResponseModel, status_code=201)

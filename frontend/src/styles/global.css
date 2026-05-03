@@ -299,3 +299,8 @@ h6 { font-size: var(--font-size-sm); font-weight: 600; letter-spacing: 0.05em; t
   transition: all var(--transition-base);
 }
 
+/* === SPINNER === */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

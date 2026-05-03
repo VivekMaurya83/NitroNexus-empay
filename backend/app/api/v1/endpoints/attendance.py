@@ -109,20 +109,21 @@ def get_attendance_by_date_range(
 
 
 @router.get("/today", response_model=ResponseModel)
-def today_attendance(db: Session = Depends(get_db),
+def today_attendance(date_filter: Optional[date] = Query(None, alias="date"),
+                     db: Session = Depends(get_db),
                      cu: User = Depends(get_current_user)):
-    today = date.today()
+    target_date = date_filter if date_filter else date.today()
     if cu.role == UserRole.EMPLOYEE:
         if not cu.employee:
             raise HTTPException(400, "No employee profile")
         record = db.query(Attendance).filter(
             Attendance.employee_id == cu.employee.id,
-            Attendance.date == today,
+            Attendance.date == target_date,
         ).first()
         return ResponseModel(data=AttendanceOut.model_validate(record) if record else None)
     # HR/Payroll/Admin — all employees of THIS company today
     records = db.query(Attendance).filter(
         Attendance.company_id == cu.company_id,
-        Attendance.date == today,
+        Attendance.date == target_date,
     ).all()
     return ResponseModel(data=[AttendanceOut.model_validate(r) for r in records])
