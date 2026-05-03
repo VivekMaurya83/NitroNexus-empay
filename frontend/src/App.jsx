@@ -100,9 +100,9 @@ export default function App() {
           <Route path="/hr/leave-allocation" element={<RoleRoute element={<LeaveAllocation />}allowed={AH}  />} />
           <Route path="/hr/holidays"         element={<RoleRoute element={<HolidayCalendar />}allowed={AH}  />} />
 
-          {/* Add Employee — Admin + HR + Payroll */}
-          <Route path="/hr/add-employee"     element={<RoleRoute element={<AddEmployee />}    allowed={AHP} />} />
-          <Route path="/hr/edit-employee/:id"element={<RoleRoute element={<AddEmployee />}    allowed={AHP} />} />
+          {/* Add Employee — Admin + HR */}
+          <Route path="/hr/add-employee"     element={<RoleRoute element={<AddEmployee />}    allowed={AH} />} />
+          <Route path="/hr/edit-employee/:id"element={<RoleRoute element={<AddEmployee />}    allowed={AH} />} />
 
           {/* Admin + Payroll */}
           <Route path="/payroll"                  element={<RoleRoute element={<PayrollManagement />} allowed={AP}  />} />

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Download, Printer } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
-import { getPayslip, downloadPayslip } from '../../services/payrollService';
+import { getPayslip, downloadPayslip, getAllPayslips } from '../../services/payrollService';
 
 export default function DetailedPayslip() {
   const [payslip, setPayslip] = useState(null);
+  const [payslipsList, setPayslipsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
@@ -15,19 +16,32 @@ export default function DetailedPayslip() {
   const idParam = searchParams.get('id');
 
   useEffect(() => {
-    if (!idParam) {
-      setError('No payslip ID provided. Please select a payslip from Payroll Management.');
-      setLoading(false);
-      return;
-    }
     setLoading(true);
-    getPayslip(idParam)
-      .then(p => {
-        if (!p) setError('Payslip not found');
-        else setPayslip(p);
-      })
-      .catch(e => setError(e.message || 'Failed to load payslip'))
-      .finally(() => setLoading(false));
+    setError('');
+
+    const fetchPayslip = async () => {
+      try {
+        if (idParam) {
+          const p = await getPayslip(idParam);
+          if (!p) throw new Error('Payslip not found');
+          setPayslip(p);
+        } else {
+          const slips = await getAllPayslips();
+          if (!slips || slips.length === 0) {
+            setError('No payslips have been generated for you yet.');
+            return;
+          }
+          setPayslipsList(slips);
+          setPayslip(slips[0]); // Select most recent payslip by default
+        }
+      } catch (e) {
+        setError(e.message || 'Failed to load payslip');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPayslip();
   }, [idParam]);
 
   const handleDownload = () => {
@@ -61,9 +75,25 @@ export default function DetailedPayslip() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
-        <div>
-          <h1 className="page-title">Payslip</h1>
-          <p className="page-subtitle">Detailed salary breakdown</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+          <div>
+            <h1 className="page-title">Payslip</h1>
+            <p className="page-subtitle">Detailed salary breakdown</p>
+          </div>
+          {payslipsList.length > 1 && (
+            <select 
+              className="form-select" 
+              style={{ width: 200 }} 
+              value={payslip.id} 
+              onChange={e => setPayslip(payslipsList.find(p => p.id === parseInt(e.target.value)))}
+            >
+              {payslipsList.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.period} (ID: {p.id})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
           <motion.button className="btn btn-secondary" whileHover={{ scale: 1.02 }} onClick={()=>window.print()}><Printer size={16} /> Print</motion.button>

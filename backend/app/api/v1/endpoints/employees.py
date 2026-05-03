@@ -236,6 +236,11 @@ def update_employee(employee_id: int, p: EmployeeUpdate,
         allowed = {"phone", "address", "bank_name", "account_number", "ifsc_code"}
         updates = {k: v for k, v in p.model_dump(exclude_none=True).items()
                    if k in allowed}
+    # Payroll officers can only update salary/bank related info
+    elif cu.role == UserRole.PAYROLL_OFFICER:
+        allowed = {"pan_number", "bank_name", "account_number", "ifsc_code"}
+        updates = {k: v for k, v in p.model_dump(exclude_none=True).items()
+                   if k in allowed}
     else:
         updates = p.model_dump(exclude_none=True)
 
