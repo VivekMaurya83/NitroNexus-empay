@@ -477,10 +477,7 @@ All API responses follow a standard structure:
 
 **Made with ❤️ for modern HR management**
 
-*Give us a ⭐ if EmPay helps your organization!*
+
 
 </div>
 
-*Give us a ⭐ if EmPay helps your organization!*
-
-</div>
