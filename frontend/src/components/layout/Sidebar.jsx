@@ -55,11 +55,11 @@ export default function Sidebar({ collapsed, onToggle }) {
   return (
     <motion.aside className="sidebar" animate={{ width: collapsed ? 64 : 240 }} transition={{ duration: 0.25, ease: 'easeInOut' }}>
       {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="logo-icon"><DollarSign size={20} /></div>
+      <div className="sidebar-logo" style={{ paddingLeft: collapsed ? '12px' : '24px' }}>
+        <img src="/logo.png" alt="Company Logo" style={{ height: '40px', width: 'auto', flexShrink: 0 }} />
         <AnimatePresence>
           {!collapsed && (
-            <motion.span className="logo-text" initial={{ opacity:0, width:0 }} animate={{ opacity:1, width:'auto' }} exit={{ opacity:0, width:0 }} transition={{ duration:0.2 }}>
+            <motion.span className="logo-text" initial={{ opacity:0, width:0 }} animate={{ opacity:1, width:'auto' }} exit={{ opacity:0, width:0 }} transition={{ duration:0.2 }} style={{ marginLeft: 0 }}>
               EmPay
             </motion.span>
           )}

@@ -72,8 +72,8 @@ export default function Register() {
       >
         {/* Logo */}
         <div className="auth-logo">
-          <div className="logo-icon"><DollarSign size={22} /></div>
-          <span className="logo-text" style={{ fontSize: 'var(--font-size-2xl)' }}>EmPay</span>
+          <img src="/logo.png" alt="Company Logo" style={{ height: '56px', width: 'auto' }} />
+          <span className="logo-text" style={{ fontSize: 'var(--font-size-2xl)', marginLeft: 0 }}>EmPay</span>
         </div>
         <div className="auth-tagline">Register Your Company</div>
 

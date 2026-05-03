@@ -39,8 +39,8 @@ export default function Login() {
 
       <motion.div className="auth-card" initial={{ opacity: 0, y: 32, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease: 'easeOut' }}>
         <div className="auth-logo">
-          <div className="logo-icon"><DollarSign size={22} /></div>
-          <span className="logo-text" style={{ fontSize: 'var(--font-size-2xl)' }}>EmPay</span>
+          <img src="/logo.png" alt="Company Logo" style={{ height: '56px', width: 'auto' }} />
+          <span className="logo-text" style={{ fontSize: 'var(--font-size-2xl)', marginLeft: 0 }}>EmPay</span>
         </div>
         <div className="auth-tagline">Smart HR Management System</div>
 
